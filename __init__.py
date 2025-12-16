@@ -61,7 +61,7 @@ if (4, 1, 0) <= bpy.app.version:
 
 class ExportRMESH(Operator, ExportHelper):
     """Write an RMESH file"""
-    bl_idname = 'export_scene.rmesh'
+    bl_idname = 'export_scene.ermesh'
     bl_label = 'Export RMESH'
     filename_ext = '.rmesh'
 
@@ -77,7 +77,7 @@ class ExportRMESH(Operator, ExportHelper):
 
 class ImportRMESH(Operator, ImportHelper):
     """Import an RMESH file"""
-    bl_idname = "import_scene.rmesh"
+    bl_idname = "import_scene.irmesh"
     bl_label = "Import RMESH"
     filename_ext = '.rmesh'
 
@@ -115,10 +115,10 @@ if (4, 1, 0) <= bpy.app.version:
             return (context.area and context.area.type == 'VIEW_3D')
 
 def menu_func_export(self, context):
-    self.layout.operator(ExportRMESH.bl_idname, text='Halo Amalgam Scene Specification (.ass)')
+    self.layout.operator(ExportRMESH.bl_idname, text='SCP RMESH (.rmesh)')
 
 def menu_func_import(self, context):
-    self.layout.operator(ImportRMESH.bl_idname, text="Halo Amalgam Scene Specification (.ass)")
+    self.layout.operator(ImportRMESH.bl_idname, text='SCP RMESH (.rmesh)')
 
 classesscp = [
     ImportRMESH,
