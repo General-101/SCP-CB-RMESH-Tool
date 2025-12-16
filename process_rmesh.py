@@ -1,7 +1,36 @@
+# ##### BEGIN MIT LICENSE BLOCK #####
+#
+# MIT License
+#
+# Copyright (c) 2023 Steven Garcia
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# ##### END MIT LICENSE BLOCK #####
+
+import bpy
 import json
+import math
 import struct
 
 from enum import Flag, Enum, auto
+from mathutils import Matrix, Vector
 
 class TextureType(Enum):
     none = 0
@@ -290,12 +319,108 @@ def write_rmesh(rmesh_dict, output_path):
                     write_unsigned_int(rmesh_stream, entity_dict["fx"])
                     write_string(rmesh_stream, entity_dict["texture_name"])
 
-file_path = "model.rmesh"
-json_path = "dump.json"
-output_path = "model.rmesh"
+def export_scene(context, filepath, report):
+    report({'INFO'}, "Export completed successfully")
+    return {'FINISHED'}
 
-rmesh_dict = read_rmesh(file_path)
-with open(json_path, 'w', encoding ='utf8') as json_file:
-    json.dump(rmesh_dict, json_file, ensure_ascii = True, indent=4)
+def import_scene(context, filepath, report):
+    rmesh_dict = read_rmesh(filepath)
 
-write_rmesh(rmesh_dict, output_path)
+    rot_x = Matrix.Rotation(math.radians(90), 4, 'X')
+    scale_x = Matrix.Scale(-1, 4, (1, 0, 0))
+
+    transform = scale_x @ rot_x
+
+    for mesh_idx, mesh_dict in enumerate(rmesh_dict["meshes"]):
+        mesh = bpy.data.meshes.new("mesh_%s" % mesh_idx)
+        object_mesh = bpy.data.objects.new("object_%s" % mesh_idx, mesh)
+        context.collection.objects.link(object_mesh)
+
+        vertices = [transform @ Vector(vertex["position"]) for vertex in mesh_dict["vertices"]]
+        triangles = [[triangle["a"], triangle["b"], triangle["c"]] for triangle in mesh_dict["triangles"]]
+        mesh.from_pydata(vertices, [], triangles)
+
+        mat = bpy.data.materials.new(name="texture_%s" % mesh_idx)
+        mesh.materials.append(mat)
+
+        layer_color = mesh.color_attributes.new("color", "BYTE_COLOR", "CORNER")
+        layer_uv_0 = mesh.uv_layers.new(name="UVMap_Render")
+        layer_uv_1 = mesh.uv_layers.new(name="UVMap_Lightmap")
+        for poly in mesh.polygons:
+            for loop_index in poly.loop_indices:
+                vert_index = mesh.loops[loop_index].vertex_index
+                vertex = mesh_dict["vertices"][vert_index]
+                layer_uv_0.data[loop_index].uv = (vertex["uv1"][0], 1 - vertex["uv1"][1])
+                layer_uv_1.data[loop_index].uv = (vertex["uv2"][0], 1 - vertex["uv2"][1])
+                layer_color.data[loop_index].color = (vertex["color"][0] / 255, vertex["color"][1] / 255, vertex["color"][2] / 255, 1.0)
+
+    for mesh_idx, mesh_dict in enumerate(rmesh_dict["collision_meshes"]):
+        mesh = bpy.data.meshes.new("coll_mesh_%s" % mesh_idx)
+        object_mesh = bpy.data.objects.new("coll_object_%s" % mesh_idx, mesh)
+        context.collection.objects.link(object_mesh)
+
+        vertices = [transform @ Vector(vertex["position"]) for vertex in mesh_dict["vertices"]]
+        triangles = [[triangle["a"], triangle["b"], triangle["c"]] for triangle in mesh_dict["triangles"]]
+        mesh.from_pydata(vertices, [], triangles)
+
+    for entity_idx, entity_dict in enumerate(rmesh_dict["entities"]):
+        if entity_dict["entity_type"] == "screen":
+            object_mesh = bpy.data.objects.new("entity_%s" % entity_idx, None)
+            context.collection.objects.link(object_mesh)
+            object_mesh.location = transform @ Vector(entity_dict["position"])
+
+        elif entity_dict["entity_type"] == "save_screen":
+            object_mesh = bpy.data.objects.new("entity_%s" % entity_idx, None)
+            context.collection.objects.link(object_mesh)
+            object_mesh.location = transform @ Vector(entity_dict["position"])
+
+        elif entity_dict["entity_type"] == "waypoint":
+            object_mesh = bpy.data.objects.new("entity_%s" % entity_idx, None)
+            context.collection.objects.link(object_mesh)
+            object_mesh.location = transform @ Vector(entity_dict["position"])
+
+        elif entity_dict["entity_type"] == "light":
+            object_data = bpy.data.lights.new("entity_%s" % entity_idx, "POINT")
+            object_mesh = bpy.data.objects.new("entity_%s" % entity_idx, object_data)
+            context.collection.objects.link(object_mesh)
+            object_mesh.location = transform @ Vector(entity_dict["position"])
+            object_data.energy = entity_dict["intensity"] * 1000000
+            object_data.shadow_soft_size = entity_dict["radius"]
+            r, g, b = entity_dict["light_color"].split(" ")
+            object_data.color = (int(r) / 255, int(g) / 255, int(b) / 255)
+
+        elif entity_dict["entity_type"] == "light_fix":
+            object_data = bpy.data.lights.new("entity_%s" % entity_idx, "POINT")
+            object_mesh = bpy.data.objects.new("entity_%s" % entity_idx, object_data)
+            context.collection.objects.link(object_mesh)
+            object_mesh.location = transform @ Vector(entity_dict["position"])
+            object_data.energy = entity_dict["intensity"] * 1000000
+            object_data.shadow_soft_size = entity_dict["radius"]
+            r, g, b = entity_dict["light_color"].split(" ")
+            object_data.color = (int(r) / 255, int(g) / 255, int(b) / 255)
+
+        elif entity_dict["entity_type"] == "spotlight":
+            object_data = bpy.data.lights.new("entity_%s" % entity_idx, "SPOT")
+            object_mesh = bpy.data.objects.new("entity_%s" % entity_idx, object_data)
+            context.collection.objects.link(object_mesh)
+            object_mesh.location = transform @ Vector(entity_dict["position"])
+            object_data.energy = entity_dict["intensity"] * 1000000
+            object_data.shadow_soft_size = entity_dict["radius"]
+            r, g, b = entity_dict["light_color"].split(" ")
+            object_data.color = (int(r) / 255, int(g) / 255, int(b) / 255)
+
+        elif entity_dict["entity_type"] == "soundemitter":
+            object_mesh = bpy.data.objects.new("entity_%s" % entity_idx, None)
+            context.collection.objects.link(object_mesh)
+            object_mesh.location = transform @ Vector(entity_dict["position"])
+
+        elif entity_dict["entity_type"] == "model":
+            print("Is this a leftover?")
+
+        elif entity_dict["entity_type"] == "mesh":
+            object_mesh = bpy.data.objects.new("entity_%s" % entity_idx, None)
+            context.collection.objects.link(object_mesh)
+            object_mesh.location = transform @ Vector(entity_dict["position"])
+
+    report({'INFO'}, "Export completed successfully")
+    return {'FINISHED'}
