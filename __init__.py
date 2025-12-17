@@ -37,27 +37,33 @@ bl_info = {
 
 import bpy
 
+from bpy.types import Operator
+from bpy.props import StringProperty
 from bpy_extras.io_utils import (
     ImportHelper,
     ExportHelper
     )
 
-from bpy.types import (
-    Operator,
-    Panel,
-    PropertyGroup
-    )
-
-from bpy.props import (
-    BoolProperty,
-    EnumProperty,
-    FloatProperty,
-    PointerProperty,
-    StringProperty
-    )
-
 if (4, 1, 0) <= bpy.app.version:
     from bpy.types import FileHandler
+
+class SCPCBAddonPrefs(bpy.types.AddonPreferences):
+    bl_idname = __name__
+    game_path: StringProperty(
+        name="Game Path",
+        description="Path to the game directory",
+        subtype="DIR_PATH"
+    )
+
+    def draw(self, context):
+        layout = self.layout
+
+        box = layout.box()
+        box.label(text="Addon Options:")
+        col = box.column(align=True)
+        row = col.row()
+        row.label(text='Game Path:')
+        row.prop(self, "game_path", text='')
 
 class ExportRMESH(Operator, ExportHelper):
     """Write an RMESH file"""
@@ -71,9 +77,9 @@ class ExportRMESH(Operator, ExportHelper):
         )
 
     def execute(self, context):
-        from . import process_rmesh
+        from . import scene_rmesh
 
-        return process_rmesh.export_scene(context, self.filepath, self.report)
+        return scene_rmesh.export_scene(context, self.filepath, self.report)
 
 class ImportRMESH(Operator, ImportHelper):
     """Import an RMESH file"""
@@ -92,9 +98,9 @@ class ImportRMESH(Operator, ImportHelper):
         )
 
     def execute(self, context):
-        from . import process_rmesh
+        from . import scene_rmesh
 
-        return process_rmesh.import_scene(context, self.filepath, self.report)
+        return scene_rmesh.import_scene(context, self.filepath, self.report)
 
     if (4, 1, 0) <= bpy.app.version:
         def invoke(self, context, event):
@@ -129,6 +135,7 @@ if (4, 1, 0) <= bpy.app.version:
     classesscp.append(ImportRMESH_FileHandler)
 
 def register():
+    bpy.utils.register_class(SCPCBAddonPrefs)
     for clsscp in classesscp:
         bpy.utils.register_class(clsscp)
 
@@ -136,6 +143,7 @@ def register():
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
 
 def unregister():
+    bpy.utils.unregister_class(SCPCBAddonPrefs)
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
     for clsscp in classesscp:
