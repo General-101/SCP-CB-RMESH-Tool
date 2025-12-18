@@ -37,15 +37,40 @@ bl_info = {
 
 import bpy
 
-from bpy.types import Operator
-from bpy.props import StringProperty
+from bpy.types import (
+        PropertyGroup,
+        Operator,
+        Panel
+        )
+from bpy.props import (
+        IntProperty,
+        BoolProperty,
+        EnumProperty,
+        StringProperty,
+        PointerProperty,
+        CollectionProperty
+        )
 from bpy_extras.io_utils import (
     ImportHelper,
     ExportHelper
     )
 
+from enum import Flag, Enum, auto
 if (4, 1, 0) <= bpy.app.version:
     from bpy.types import FileHandler
+
+class ObjectType(Enum):
+    mesh = 0
+    collision = auto()
+    entity_screen = auto()
+    entity_save_screen = auto()
+    entity_waypoint = auto()
+    entity_light = auto()
+    entity_light_fix = auto()
+    entity_spotlight = auto()
+    entity_sound_emitter = auto()
+    entity_model = auto()
+    entity_mesh = auto()
 
 class SCPCBAddonPrefs(bpy.types.AddonPreferences):
     bl_idname = __name__
@@ -64,6 +89,142 @@ class SCPCBAddonPrefs(bpy.types.AddonPreferences):
         row = col.row()
         row.label(text='Game Path:')
         row.prop(self, "game_path", text='')
+
+class RMESHObjectPropertiesGroup(PropertyGroup):
+    object_type: EnumProperty(
+        name="Type",
+        description="Set the classification for the RMESH object",
+        items = ( ('0', "Mesh", "Mesh"),
+                    ('1', "Collision", "Collision"),
+                    ('2', "Entity Screen", "Legacy?"),
+                    ('3', "Entity Save Screen", "Entity Save Screen"),
+                    ('4', "Entity Waypoint", "Entity Waypoint"),
+                    ('5', "Entity Light", "Entity Light"),
+                    ('6', "Entity Light Fix", "Entity Light Fix"),
+                    ('7', "Entity Spotlight", "Entity Spotlight"),
+                    ('8', "Entity Sound Emitter", "Entity Sound Emitter"),
+                    ('9', "Entity Model", "Legacy?"),
+                    ('10', "Entity Mesh", "Entity Mesh")
+                )
+        )
+    
+    model_path: StringProperty(
+            name = "Model",
+            description="Model to use for this entity",
+            default="",
+            maxlen=1024,
+            subtype='DIR_PATH'
+    )
+
+    texture_path: StringProperty(
+            name = "Texture",
+            description="Texture to use for this entity",
+            default="",
+            maxlen=1024,
+            subtype='DIR_PATH'
+    )
+
+    sound_emitter_id: IntProperty(
+        name = "Sound Emitter ID",
+        description = "???"
+        )
+
+    has_collision: BoolProperty(
+        name ="Has Collision",
+        description = "Is the object collidable",
+        default = False,
+        )
+
+    fx: IntProperty(
+        name = "FX",
+        description = "???"
+        )
+
+def render_screen(context, layout, active_property):
+    box = layout.split()
+    col = box.column(align=True)
+    row = col.row()
+    row.label(text='Texture Path:')
+    row.prop(active_property, "texture_path", text='')
+
+def render_save_screen(context, layout, active_property):
+    box = layout.split()
+    col = box.column(align=True)
+    row = col.row()
+    row.label(text='Model Path:')
+    row.prop(active_property, "model_path", text='')
+    row = col.row()
+    row.label(text='Texture Path:')
+    row.prop(active_property, "texture_path", text='')
+
+def render_sound_emitter(context, layout, active_property):
+    box = layout.split()
+    col = box.column(align=True)
+    row = col.row()
+    row.label(text='Sound Emitter ID:')
+    row.prop(active_property, "sound_emitter_id", text='')
+
+def render_entity_model(context, layout, active_property):
+    box = layout.split()
+    col = box.column(align=True)
+    row = col.row()
+    row.label(text='Model Path:')
+    row.prop(active_property, "model_path", text='')
+
+def render_entity_mesh(context, layout, active_property):
+    box = layout.split()
+    col = box.column(align=True)
+    row = col.row()
+    row.label(text='Model Path:')
+    row.prop(active_property, "model_path", text='')
+    row = col.row()
+    row.label(text='Texture Path:')
+    row.prop(active_property, "texture_path", text='')
+    row = col.row()
+    row.label(text='Has Collision:')
+    row.prop(active_property, "has_collision", text='')
+    row = col.row()
+    row.label(text='FX:')
+    row.prop(active_property, "fx", text='')
+
+class RMESH_ObjectProps(Panel):
+    bl_label = "Rmesh Object Properties"
+    bl_idname = "RMESH_PT_ObjectDetailsPanel"
+    bl_space_type = "PROPERTIES"
+    bl_region_type = "WINDOW"
+    bl_context = "object"
+    bl_options = {"DEFAULT_CLOSED"}
+
+    @classmethod
+    def poll(self, context):
+        valid = False
+        ob = context.object
+
+        if hasattr(ob, 'rmesh'):
+            valid = True
+
+        return valid
+
+    def draw(self, context):
+        layout = self.layout
+
+        ob = context.object
+        ob_rmesh = ob.rmesh
+        col = layout.column(align=True)
+        row = col.row()
+        row.label(text='Object Type:')
+        row.prop(ob_rmesh, "object_type", text='')
+        object_type = ObjectType(int(ob_rmesh.object_type))
+        if object_type == ObjectType.entity_screen:
+            render_screen(context, layout, ob_rmesh)
+        elif object_type == ObjectType.entity_save_screen:
+            render_save_screen(context, layout, ob_rmesh)
+        elif object_type == ObjectType.entity_sound_emitter:
+            render_sound_emitter(context, layout, ob_rmesh)
+        elif object_type == ObjectType.entity_model:
+            render_entity_model(context, layout, ob_rmesh)
+        elif object_type == ObjectType.entity_mesh:
+            render_entity_mesh(context, layout, ob_rmesh)
 
 class ExportRMESH(Operator, ExportHelper):
     """Write an RMESH file"""
@@ -128,7 +289,9 @@ def menu_func_import(self, context):
 
 classesscp = [
     ImportRMESH,
-    ExportRMESH
+    ExportRMESH,
+    RMESHObjectPropertiesGroup,
+    RMESH_ObjectProps
 ]
 
 if (4, 1, 0) <= bpy.app.version:
@@ -141,11 +304,13 @@ def register():
 
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
+    bpy.types.Object.rmesh = PointerProperty(type=RMESHObjectPropertiesGroup, name="RMESH Properties", description="Set properties for your rmesh object")
 
 def unregister():
     bpy.utils.unregister_class(SCPCBAddonPrefs)
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
+    del bpy.types.Object.rmesh
     for clsscp in classesscp:
         bpy.utils.unregister_class(clsscp)
 

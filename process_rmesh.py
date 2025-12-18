@@ -182,36 +182,36 @@ def read_rmesh(file_path):
 
                 elif entity_dict["entity_type"] == "light":
                     entity_dict["position"] = read_vector(rmesh_stream)
-                    entity_dict["radius"] = read_float(rmesh_stream)
-                    entity_dict["light_color"] = read_string(rmesh_stream)
+                    entity_dict["range"] = read_float(rmesh_stream)
+                    entity_dict["color"] = read_string(rmesh_stream)
                     entity_dict["intensity"] = read_float(rmesh_stream)
 
                 elif entity_dict["entity_type"] == "light_fix":
                     entity_dict["position"] = read_vector(rmesh_stream)
-                    entity_dict["light_color"] = read_string(rmesh_stream)
+                    entity_dict["color"] = read_string(rmesh_stream)
                     entity_dict["intensity"] = read_float(rmesh_stream)
-                    entity_dict["radius"] = read_float(rmesh_stream)
+                    entity_dict["range"] = read_float(rmesh_stream)
 
                 elif entity_dict["entity_type"] == "spotlight":
                     entity_dict["position"] = read_vector(rmesh_stream)
-                    entity_dict["radius"] = read_float(rmesh_stream)
-                    entity_dict["light_color"] = read_string(rmesh_stream)
+                    entity_dict["range"] = read_float(rmesh_stream)
+                    entity_dict["color"] = read_string(rmesh_stream)
                     entity_dict["intensity"] = read_float(rmesh_stream)
-                    entity_dict["angles"] = read_string(rmesh_stream)
+                    entity_dict["euler_rotation"] = read_string(rmesh_stream)
                     entity_dict["inner_cone_angle"] = read_unsigned_int(rmesh_stream)
                     entity_dict["outer_cone_angle"] = read_unsigned_int(rmesh_stream)
 
                 elif entity_dict["entity_type"] == "soundemitter":
                     entity_dict["position"] = read_vector(rmesh_stream)
                     entity_dict["id"] = read_unsigned_int(rmesh_stream)
-                    entity_dict["radius"] = read_float(rmesh_stream)
+                    entity_dict["range"] = read_float(rmesh_stream)
 
                 elif entity_dict["entity_type"] == "model":
                     entity_dict["model_name"] = read_string(rmesh_stream)
 
                 elif entity_dict["entity_type"] == "mesh":
                     entity_dict["position"] = read_vector(rmesh_stream)
-                    entity_dict["mesh_name"] = read_string(rmesh_stream)
+                    entity_dict["model_name"] = read_string(rmesh_stream)
                     entity_dict["euler_rotation"] = read_vector(rmesh_stream)
                     entity_dict["scale"] = read_vector(rmesh_stream)
                     entity_dict["has_collision"] = read_byte(rmesh_stream)
@@ -283,36 +283,36 @@ def write_rmesh(rmesh_dict, output_path):
 
                 elif entity_dict["entity_type"] == "light":
                     write_vector(rmesh_stream, entity_dict["position"])
-                    write_float(rmesh_stream, entity_dict["radius"])
-                    write_string(rmesh_stream, entity_dict["light_color"])
+                    write_float(rmesh_stream, entity_dict["range"])
+                    write_string(rmesh_stream, entity_dict["color"])
                     write_float(rmesh_stream, entity_dict["intensity"])
 
                 elif entity_dict["entity_type"] == "light_fix":
                     write_vector(rmesh_stream, entity_dict["position"])
-                    write_string(rmesh_stream, entity_dict["light_color"])
+                    write_string(rmesh_stream, entity_dict["color"])
                     write_float(rmesh_stream, entity_dict["intensity"])
-                    write_float(rmesh_stream, entity_dict["radius"])
+                    write_float(rmesh_stream, entity_dict["range"])
 
                 elif entity_dict["entity_type"] == "spotlight":
                     write_vector(rmesh_stream, entity_dict["position"])
-                    write_float(rmesh_stream, entity_dict["radius"])
-                    write_string(rmesh_stream, entity_dict["light_color"])
+                    write_float(rmesh_stream, entity_dict["range"])
+                    write_string(rmesh_stream, entity_dict["color"])
                     write_float(rmesh_stream, entity_dict["intensity"])
-                    write_string(rmesh_stream, entity_dict["angles"])
+                    write_string(rmesh_stream, entity_dict["euler_rotation"])
                     write_unsigned_int(rmesh_stream, entity_dict["inner_cone_angle"])
                     write_unsigned_int(rmesh_stream, entity_dict["outer_cone_angle"])
 
                 elif entity_dict["entity_type"] == "soundemitter":
                     write_vector(rmesh_stream, entity_dict["position"])
                     write_unsigned_int(rmesh_stream, entity_dict["id"])
-                    write_float(rmesh_stream, entity_dict["radius"])
+                    write_float(rmesh_stream, entity_dict["range"])
 
                 elif entity_dict["entity_type"] == "model":
                     write_string(rmesh_stream, entity_dict["model_name"])
 
                 elif entity_dict["entity_type"] == "mesh":
                     write_vector(rmesh_stream, entity_dict["position"])
-                    write_string(rmesh_stream, entity_dict["mesh_name"])
+                    write_string(rmesh_stream, entity_dict["model_name"])
                     write_vector(rmesh_stream, entity_dict["euler_rotation"])
                     write_vector(rmesh_stream, entity_dict["scale"])
                     write_byte(rmesh_stream, entity_dict["has_collision"])
