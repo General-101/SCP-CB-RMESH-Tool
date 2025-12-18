@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import os
 import json
 import struct
 
@@ -165,16 +166,16 @@ def read_rmesh(file_path):
             for entity_idx in range(entity_count):
                 entity_dict = {}
                 entity_dict["entity_type"] = read_string(rmesh_stream)
-                if entity_dict["entity_type"] == "screen":
+                if entity_dict["entity_type"] == "screen": # Unused in UER. Legacy? - Gen
                     entity_dict["position"] = read_vector(rmesh_stream) # Not sure if this is actually a position but it's 3 floats. - Gen
                     entity_dict["texture_name"] = read_string(rmesh_stream)
 
                 elif entity_dict["entity_type"] == "save_screen":
                     entity_dict["position"] = read_vector(rmesh_stream)
-                    entity_dict["texture_name"] = read_string(rmesh_stream)
+                    entity_dict["model_name"] = read_string(rmesh_stream)
                     entity_dict["euler_rotation"] = read_vector(rmesh_stream)
                     entity_dict["scale"] = read_vector(rmesh_stream)
-                    entity_dict["image_path"] = read_string(rmesh_stream)
+                    entity_dict["texture_name"] = read_string(rmesh_stream)
 
                 elif entity_dict["entity_type"] == "waypoint":
                     entity_dict["position"] = read_vector(rmesh_stream)
@@ -256,26 +257,26 @@ def write_rmesh(rmesh_dict, output_path):
             for vertex_dict in collision_dict["vertices"]:
                 write_vector(rmesh_stream, vertex_dict["position"])
 
-            write_unsigned_int(rmesh_stream, len(mesh_dict["triangles"]))
-            for triangle_dict in mesh_dict["triangles"]:
+            write_unsigned_int(rmesh_stream, len(collision_dict["triangles"]))
+            for triangle_dict in collision_dict["triangles"]:
                 write_unsigned_int(rmesh_stream, triangle_dict["a"])
                 write_unsigned_int(rmesh_stream, triangle_dict["b"])
                 write_unsigned_int(rmesh_stream, triangle_dict["c"])
 
         write_unsigned_int(rmesh_stream, len(rmesh_dict["entities"]))
-        if has_room_template: # original this was the arg rt in the original function. Need to find out if this is just a given. - Gen
+        if has_room_template: # originally this was the arg rt in the original function. Need to find out if this is just a given. - Gen
             for entity_dict in rmesh_dict["entities"]:
                 write_string(rmesh_stream, entity_dict["entity_type"])
                 if entity_dict["entity_type"] == "screen":
-                    write_vector(rmesh_stream, entity_dict["position"]) # Not sure if this is actually a position but it's 3 floats. - Gen
+                    write_vector(rmesh_stream, entity_dict["position"])
                     write_string(rmesh_stream, entity_dict["texture_name"])
 
                 elif entity_dict["entity_type"] == "save_screen":
                     write_vector(rmesh_stream, entity_dict["position"])
-                    write_string(rmesh_stream, entity_dict["texture_name"])
+                    write_string(rmesh_stream, entity_dict["model_name"])
                     write_vector(rmesh_stream, entity_dict["euler_rotation"])
                     write_vector(rmesh_stream, entity_dict["scale"])
-                    write_string(rmesh_stream, entity_dict["image_path"])
+                    write_string(rmesh_stream, entity_dict["texture_name"])
 
                 elif entity_dict["entity_type"] == "waypoint":
                     write_vector(rmesh_stream, entity_dict["position"])
@@ -317,19 +318,3 @@ def write_rmesh(rmesh_dict, output_path):
                     write_byte(rmesh_stream, entity_dict["has_collision"])
                     write_unsigned_int(rmesh_stream, entity_dict["fx"])
                     write_string(rmesh_stream, entity_dict["texture_name"])
-
-input_path = r"cont1_005.rmesh"
-json_path = r"rmesh.json"
-
-json_path = r"cont1_038.json"
-output_path = r"cont1_038.rmesh"
-
-if False:
-    if True:
-        rmesh_dict = read_rmesh(input_path)
-        with open(json_path, 'w', encoding ='utf8') as json_file:
-            json.dump(rmesh_dict, json_file, ensure_ascii = True, indent=4)
-    else:
-        with open(json_path, 'r', encoding ='utf8') as json_file:
-            data = json.load(json_file)
-            write_rmesh(data, output_path)
