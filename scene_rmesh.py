@@ -210,8 +210,8 @@ def export_scene(context, filepath, report):
                                 filename = os.path.basename(bpy.path.abspath(image.filepath))
                                 name_no_ext = os.path.splitext(filename)[0]
                                 if "_lm" in name_no_ext.lower():
-                                    diffuse_texture_dict["texture_type"] = TextureType.lightmap.value
-                                    diffuse_texture_dict["texture_name"] = filename
+                                    lightmap_texture_dict["texture_type"] = TextureType.lightmap.value
+                                    lightmap_texture_dict["texture_name"] = filename
                                     break
 
                     output_material_node = get_output_material_node(mat)
