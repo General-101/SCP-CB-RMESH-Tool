@@ -1,29 +1,3 @@
-# ##### BEGIN MIT LICENSE BLOCK #####
-#
-# MIT License
-#
-# Copyright (c) 2023 Steven Garcia
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-#
-# ##### END MIT LICENSE BLOCK #####
-
 import os
 import json
 import struct
@@ -167,7 +141,7 @@ def read_rmesh(file_path):
                 entity_dict = {}
                 entity_dict["entity_type"] = read_string(rmesh_stream)
                 if entity_dict["entity_type"] == "screen": # Unused in UER. Legacy? - Gen
-                    entity_dict["position"] = read_vector(rmesh_stream) # Not sure if this is actually a position but it's 3 floats. - Gen
+                    entity_dict["position"] = read_vector(rmesh_stream)
                     entity_dict["texture_name"] = read_string(rmesh_stream)
 
                 elif entity_dict["entity_type"] == "save_screen":
@@ -192,7 +166,7 @@ def read_rmesh(file_path):
                     entity_dict["intensity"] = read_float(rmesh_stream)
                     entity_dict["range"] = read_float(rmesh_stream)
 
-                elif entity_dict["entity_type"] == "spotlight":
+                elif entity_dict["entity_type"] == "spotlight": # Unused in UER. Legacy? - Gen
                     entity_dict["position"] = read_vector(rmesh_stream)
                     entity_dict["range"] = read_float(rmesh_stream)
                     entity_dict["color"] = read_string(rmesh_stream)
@@ -206,7 +180,7 @@ def read_rmesh(file_path):
                     entity_dict["id"] = read_unsigned_int(rmesh_stream)
                     entity_dict["range"] = read_float(rmesh_stream)
 
-                elif entity_dict["entity_type"] == "model":
+                elif entity_dict["entity_type"] == "model": # Unused in UER. Legacy? - Gen
                     entity_dict["model_name"] = read_string(rmesh_stream)
 
                 elif entity_dict["entity_type"] == "mesh":
