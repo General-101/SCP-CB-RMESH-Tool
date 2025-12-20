@@ -18,7 +18,7 @@ def import_mesh(node, material_mapping, bm):
     for face in node.faces:
         faces.extend(face.indices)
 
-    pivot_matrix = Matrix.Rotation(radians(90), 4, 'X') @  Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0))
+    pivot_matrix = Matrix.Rotation(radians(90), 4, 'X') @  Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0)) @ Matrix.Scale(0.00625, 4)
     vertices = [pivot_matrix @ Vector(vertex) for vertex in node.vertices]
 
     # create mesh from data

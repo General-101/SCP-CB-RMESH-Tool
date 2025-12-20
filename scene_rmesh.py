@@ -188,7 +188,7 @@ def export_scene(context, filepath, report):
     collision_collection = get_referenced_collection("collisions", context.scene.collection, False)
     entity_collection = get_referenced_collection("entities", context.scene.collection, False)
 
-    pivot_matrix = Matrix.Rotation(radians(-90), 4, 'X') @  Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0))
+    pivot_matrix = Matrix.Rotation(radians(-90), 4, 'X') @  Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0)) @ Matrix.Scale(160.0, 4)
 
     depsgraph = context.evaluated_depsgraph_get()
 
@@ -423,9 +423,7 @@ def import_scene(context, filepath, report):
 
     game_path = bpy.context.preferences.addons["io_scene_rmesh"].preferences.game_path
 
-    pivot_matrix = Matrix.Rotation(radians(90), 4, 'X') @  Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0))
-
-    #scale = Matrix.Scale(0.00625, 4)
+    pivot_matrix = Matrix.Rotation(radians(90), 4, 'X') @  Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0)) @ Matrix.Scale(0.00625, 4)
 
     mesh_collection = get_referenced_collection("meshes", context.scene.collection, False)
     collision_collection = get_referenced_collection("collisions", context.scene.collection, True)
