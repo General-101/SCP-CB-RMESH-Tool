@@ -107,13 +107,19 @@ def get_output_material_node(mat):
     return output_material_node
 
 def get_file(file_name, is_image=True):
+    file_name = os.path.basename(file_name).lower()
+    result = file_name.rsplit(".", 1)
+    if len(result) == 1 and not is_image:
+        file_name = "%s.b3d" % file_name
+
     file_asset = None
     file_path = ""
     game_path = bpy.context.preferences.addons["io_scene_rmesh"].preferences.game_path
+
     if not is_string_empty(game_path):
         for root, dirs, files in os.walk(game_path):
             for file in files:
-                if file == file_name:
+                if file.lower() == file_name:
                     file_path = os.path.join(root, file)
                     break
 
@@ -140,6 +146,29 @@ def get_material_name(ob, tri):
 
     return mat_name
 
+def get_blitz_rot_test1(rot):
+    x, y, z = rot.to_euler()
+    return [degrees(-x), degrees(z), degrees(y)]
+
+def get_blender_rot_test1(rot):
+    x, y, z = rot
+
+    return Euler((radians(-x), radians(z), radians(y)))
+
+def get_blender_rot_test2(euler_rotation):
+    bx, by, bz = euler_rotation
+    x = radians(bx)
+    y = radians(by)
+    z = radians(bz)
+
+    m = Matrix.Identity(3)
+
+    m = m @ Matrix.Rotation(x, 3, 'X')
+    m = m @ Matrix.Rotation(z, 3, 'Z')
+    m = m @ Matrix.Rotation(y, 3, 'Y')
+
+    return m.to_quaternion()
+
 def export_scene(context, filepath, report):
     rmesh_dict = {
         "rmesh_file_type": "RoomMesh",
@@ -148,14 +177,13 @@ def export_scene(context, filepath, report):
         "entities": []
     }
 
+    game_path = bpy.context.preferences.addons["io_scene_rmesh"].preferences.game_path
+
     mesh_collection = get_referenced_collection("meshes", context.scene.collection, False)
     collision_collection = get_referenced_collection("collisions", context.scene.collection, False)
     entity_collection = get_referenced_collection("entities", context.scene.collection, False)
 
-    rot_x = Matrix.Rotation(radians(-90), 4, 'X')
-    scale_x = Matrix.Scale(-1, 4, (1, 0, 0))
-
-    transform = scale_x @ rot_x
+    pivot_matrix = Matrix.Rotation(radians(-90), 4, 'X') @  Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0))
 
     depsgraph = context.evaluated_depsgraph_get()
 
@@ -218,7 +246,7 @@ def export_scene(context, filepath, report):
                 loop = mesh.loops[loop_index]
                 v = mesh.vertices[loop.vertex_index]
 
-                pos = transform @ (ob_eval.matrix_world @ v.co)
+                pos = pivot_matrix @ (ob_eval.matrix_world @ v.co)
 
                 uv1 = (0.0, 0.0)
                 uv2 = (0.0, 0.0)
@@ -260,7 +288,7 @@ def export_scene(context, filepath, report):
                 "triangles": []
             }
             for v in mesh.vertices:
-                pos = transform @ (ob_eval.matrix_world @ v.co)
+                pos = pivot_matrix @ (ob_eval.matrix_world @ v.co)
                 mesh_dict["vertices"].append({"position": pos})
 
             for tri in mesh.loop_triangles:
@@ -270,7 +298,115 @@ def export_scene(context, filepath, report):
             ob_eval.to_mesh_clear()
             rmesh_dict["collision_meshes"].append(mesh_dict)
 
-    #for ob in entity_collection.objects:
+    object_names = []
+    ALLOWED_TYPES = ('MESH', 'EMPTY', 'LIGHT', 'SPEAKER')
+    for ob in entity_collection.objects:
+        if ob.type in ALLOWED_TYPES:
+            object_names.append(ob.name)
+
+    object_names.sort(key=natural_key)
+    for object_name in object_names:
+        ob = bpy.data.objects.get(object_name)
+        if ob is not None:
+            object_type = ObjectType(int(ob.rmesh.object_type))
+            if object_type == ObjectType.entity_screen:
+                loc, rot, scale = ob.matrix_world.decompose()
+                entity_dict = {}
+
+                entity_dict["entity_type"] = "screen"
+                entity_dict["position"] = pivot_matrix @ loc
+                entity_dict["texture_name"] = bpy.path.abspath(ob.rmesh.texture_path).split(game_path, 1)[0]
+                rmesh_dict["entities"].append(entity_dict)
+
+            elif object_type == ObjectType.entity_save_screen:
+                loc, rot, scale = ob.matrix_world.decompose()
+                entity_dict = {}
+
+                entity_dict["entity_type"] = "save_screen"
+                entity_dict["position"] = pivot_matrix @ loc
+                entity_dict["model_name"] = os.path.basename(bpy.path.abspath(ob.rmesh.model_path))
+                entity_dict["euler_rotation"] = get_blitz_rot_test1(rot)
+                entity_dict["scale"] = scale
+                entity_dict["texture_name"] = bpy.path.abspath(ob.rmesh.texture_path).split(game_path, 1)[0]
+                rmesh_dict["entities"].append(entity_dict)
+
+            elif object_type == ObjectType.entity_waypoint:
+                loc, rot, scale = ob.matrix_world.decompose()
+                entity_dict = {}
+
+                entity_dict["entity_type"] = "waypoint"
+                entity_dict["position"] = pivot_matrix @ loc
+                rmesh_dict["entities"].append(entity_dict)
+
+            elif object_type == ObjectType.entity_light:
+                loc, rot, scale = ob.matrix_world.decompose()
+                r, g, b = ob.data.color
+                entity_dict = {}
+
+                entity_dict["entity_type"] = "light"
+                entity_dict["position"] = pivot_matrix @ loc
+                entity_dict["range"] = ob.data.cutoff_distance
+                entity_dict["color"] = "%s %s %s" % (round(r * 255), round(g * 255), round(b * 255))
+                entity_dict["intensity"] = ob.data.energy  / 50
+                rmesh_dict["entities"].append(entity_dict)
+
+            elif object_type == ObjectType.entity_light_fix:
+                loc, rot, scale = ob.matrix_world.decompose()
+                r, g, b = ob.data.color
+                entity_dict = {}
+
+                entity_dict["entity_type"] = "light_fix"
+                entity_dict["position"] = pivot_matrix @ loc
+                entity_dict["color"] = "%s %s %s" % (round(r * 255), round(g * 255), round(b * 255))
+                entity_dict["intensity"] = ob.data.energy  / 50
+                entity_dict["range"] = ob.data.cutoff_distance
+                rmesh_dict["entities"].append(entity_dict)
+
+            elif object_type == ObjectType.entity_spotlight:
+                loc, rot, scale = ob.matrix_world.decompose()
+                r, g, b = ob.data.color
+                entity_dict = {}
+
+                entity_dict["entity_type"] = "spotlight"
+                entity_dict["position"] = pivot_matrix @ loc
+                entity_dict["range"] = ob.data.cutoff_distance
+                entity_dict["color"] = "%s %s %s" % (round(r * 255), round(g * 255), round(b * 255))
+                entity_dict["intensity"] = ob.data.energy  / 50
+                entity_dict["euler_rotation"] = get_blitz_rot_test1(rot)
+                entity_dict["inner_cone_angle"] = 0
+                entity_dict["outer_cone_angle"] = 0
+                rmesh_dict["entities"].append(entity_dict)
+
+            elif object_type == ObjectType.entity_sound_emitter:
+                loc, rot, scale = ob.matrix_world.decompose()
+                entity_dict = {}
+
+                entity_dict["entity_type"] = "soundemitter"
+                entity_dict["position"] = pivot_matrix @ loc
+                entity_dict["id"] = ob.rmesh.sound_emitter_id
+                entity_dict["range"] = ob.data.distance_max
+                rmesh_dict["entities"].append(entity_dict)
+
+            elif object_type == ObjectType.entity_model:
+                entity_dict = {}
+
+                entity_dict["entity_type"] = "model"
+                entity_dict["model_name"] = os.path.basename(bpy.path.abspath(ob.rmesh.model_path))
+                rmesh_dict["entities"].append(entity_dict)
+
+            elif object_type == ObjectType.entity_mesh:
+                loc, rot, scale = ob.matrix_world.decompose()
+                entity_dict = {}
+
+                entity_dict["entity_type"] = "mesh"
+                entity_dict["position"] = pivot_matrix @ loc
+                entity_dict["model_name"] = os.path.basename(bpy.path.abspath(ob.rmesh.model_path))
+                entity_dict["euler_rotation"] = get_blitz_rot_test1(rot)
+                entity_dict["scale"] = scale
+                entity_dict["has_collision"] = int(ob.rmesh.has_collision)
+                entity_dict["fx"] = ob.rmesh.fx
+                entity_dict["texture_name"] = bpy.path.abspath(ob.rmesh.texture_path).split(game_path, 1)[0]
+                rmesh_dict["entities"].append(entity_dict)
 
     write_rmesh(rmesh_dict, filepath)
 
@@ -279,6 +415,8 @@ def export_scene(context, filepath, report):
 
 def import_scene(context, filepath, report):
     rmesh_dict = read_rmesh(filepath)
+
+    game_path = bpy.context.preferences.addons["io_scene_rmesh"].preferences.game_path
 
     pivot_matrix = Matrix.Rotation(radians(90), 4, 'X') @  Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0))
 
@@ -392,8 +530,7 @@ def import_scene(context, filepath, report):
     IMAGE_SEARCH=True
     for entity_idx, entity_dict in enumerate(rmesh_dict["entities"]):
         if entity_dict["entity_type"] == "screen":
-            screen_collection = get_referenced_collection("screens", entity_collection, True)
-            object_mesh = bpy.data.objects.new("screen %s" % entity_idx, None)
+            object_mesh = bpy.data.objects.new("%s screen" % entity_idx, None)
             object_mesh.rmesh.object_type = str(ObjectType.entity_screen.value)
             object_mesh.empty_display_type = 'IMAGE'
 
@@ -403,18 +540,16 @@ def import_scene(context, filepath, report):
                 file_asset = bpy.data.images.load(file_path, check_existing=True)
                 object_mesh.data = file_asset
 
-            screen_collection.objects.link(object_mesh)
+            entity_collection.objects.link(object_mesh)
             object_mesh.location = pivot_matrix @ Vector(entity_dict["position"])
 
         elif entity_dict["entity_type"] == "save_screen":
-            save_screen_collection = get_referenced_collection("save_screens", entity_collection, True)
-            object_mesh = bpy.data.objects.new("save_screen %s" % entity_idx, None)
+            object_mesh = bpy.data.objects.new("%s save_screen" % entity_idx, None)
             object_mesh.rmesh.object_type = str(ObjectType.entity_save_screen.value)
-            save_screen_collection.objects.link(object_mesh)
+            entity_collection.objects.link(object_mesh)
 
-            x, y, z = entity_dict["euler_rotation"]
             object_mesh.location = pivot_matrix @ Vector(entity_dict["position"])
-            object_mesh.rotation_euler = Euler((radians(-x), radians(z), radians(y)))
+            object_mesh.rotation_euler = get_blender_rot_test1(entity_dict["euler_rotation"])
             object_mesh.scale = Vector(entity_dict["scale"])
 
             model_path = get_file(entity_dict["model_name"], False)
@@ -423,18 +558,16 @@ def import_scene(context, filepath, report):
             object_mesh.rmesh.texture_path = texture_path
 
         elif entity_dict["entity_type"] == "waypoint":
-            waypoint_collection = get_referenced_collection("waypoints", entity_collection, True)
-            object_mesh = bpy.data.objects.new("waypoint %s" % entity_idx, None)
+            object_mesh = bpy.data.objects.new("%s waypoint" % entity_idx, None)
             object_mesh.rmesh.object_type = str(ObjectType.entity_waypoint.value)
-            waypoint_collection.objects.link(object_mesh)
+            entity_collection.objects.link(object_mesh)
             object_mesh.location = pivot_matrix @ Vector(entity_dict["position"])
 
         elif entity_dict["entity_type"] == "light":
-            light_collection = get_referenced_collection("lights", entity_collection, False)
-            object_data = bpy.data.lights.new("light %s" % entity_idx, "POINT")
-            object_mesh = bpy.data.objects.new("light %s" % entity_idx, object_data)
+            object_data = bpy.data.lights.new("%s light" % entity_idx, "POINT")
+            object_mesh = bpy.data.objects.new("%s light" % entity_idx, object_data)
             object_mesh.rmesh.object_type = str(ObjectType.entity_light.value)
-            light_collection.objects.link(object_mesh)
+            entity_collection.objects.link(object_mesh)
 
             object_mesh.location = pivot_matrix @ Vector(entity_dict["position"])
             object_data.energy = entity_dict["intensity"] * 50
@@ -444,11 +577,10 @@ def import_scene(context, filepath, report):
             object_data.color = (int(r) / 255, int(g) / 255, int(b) / 255)
 
         elif entity_dict["entity_type"] == "light_fix":
-            light_fix_collection = get_referenced_collection("light_fix", entity_collection, False)
-            object_data = bpy.data.lights.new("light_fix %s" % entity_idx, "POINT")
-            object_mesh = bpy.data.objects.new("light_fix %s" % entity_idx, object_data)
+            object_data = bpy.data.lights.new("%s light_fix" % entity_idx, "POINT")
+            object_mesh = bpy.data.objects.new("%s light_fix" % entity_idx, object_data)
             object_mesh.rmesh.object_type = str(ObjectType.entity_light_fix.value)
-            light_fix_collection.objects.link(object_mesh)
+            entity_collection.objects.link(object_mesh)
 
             object_mesh.location = pivot_matrix @ Vector(entity_dict["position"])
             object_data.energy = entity_dict["intensity"] * 50
@@ -458,11 +590,10 @@ def import_scene(context, filepath, report):
             object_data.color = (int(r) / 255, int(g) / 255, int(b) / 255)
 
         elif entity_dict["entity_type"] == "spotlight":
-            spotlight_collection = get_referenced_collection("spotlights", entity_collection, False)
-            object_data = bpy.data.lights.new("spotlight %s" % entity_idx, "SPOT")
-            object_mesh = bpy.data.objects.new("spotlight %s" % entity_idx, object_data)
+            object_data = bpy.data.lights.new("%s spotlight" % entity_idx, "SPOT")
+            object_mesh = bpy.data.objects.new("%s spotlight" % entity_idx, object_data)
             object_mesh.rmesh.object_type = str(ObjectType.entity_spotlight.value)
-            spotlight_collection.objects.link(object_mesh)
+            entity_collection.objects.link(object_mesh)
 
             x, y, z = entity_dict["euler_rotation"].split(" ")
             object_mesh.location = pivot_matrix @ Vector(entity_dict["position"])
@@ -481,40 +612,34 @@ def import_scene(context, filepath, report):
             object_data.spot_blend = max(0.0, min(1.0, 1.0 - ratio))
 
         elif entity_dict["entity_type"] == "soundemitter":
-            soundemitter_collection = get_referenced_collection("soundemitters", entity_collection, True)
-            speaker_data = bpy.data.speakers.new("soundemitter %s" % entity_idx)
-            object_mesh = bpy.data.objects.new("soundemitter %s" % entity_idx, speaker_data)
+            speaker_data = bpy.data.speakers.new("%s soundemitter" % entity_idx)
+            object_mesh = bpy.data.objects.new("%s soundemitter" % entity_idx, speaker_data)
             object_mesh.rmesh.object_type = str(ObjectType.entity_sound_emitter.value)
-            soundemitter_collection.objects.link(object_mesh)
+            entity_collection.objects.link(object_mesh)
             object_mesh.location = pivot_matrix @ Vector(entity_dict["position"])
             object_mesh.rmesh.sound_emitter_id = entity_dict["id"]
             object_mesh.data.distance_max = entity_dict["range"]
 
         elif entity_dict["entity_type"] == "model":
-            model_collection = get_referenced_collection("models", entity_collection, False)
-            object_mesh = bpy.data.objects.new("model %s" % entity_idx, None)
+            object_mesh = bpy.data.objects.new("%s model" % entity_idx, None)
             object_mesh.rmesh.object_type = str(ObjectType.entity_model.value)
-            model_collection.objects.link(object_mesh)
+            entity_collection.objects.link(object_mesh)
             model_path = get_file(entity_dict["model_name"], False)
             object_mesh.rmesh.model_path = model_path
 
         elif entity_dict["entity_type"] == "mesh":
-            entity_mesh_collection = get_referenced_collection("entity_meshes", entity_collection, False)
-
             model_path = get_file(entity_dict["model_name"], False)
             texture_path = get_file(entity_dict["texture_name"], False)
-
             ob_data = entity_meshes.get(model_path)
+            
             if ob_data is None and model_path:
-                ob_data = entity_meshes[model_path] = bpy.data.meshes.new("mesh %s" % entity_idx)
+                ob_data = entity_meshes[model_path] = bpy.data.meshes.new("%s mesh" % entity_idx)
                 data = B3DTree().parse(model_path)
-
-                dirname = bpy.context.preferences.addons["io_scene_rmesh"].preferences.game_path
                 for i, texture in enumerate(data['textures'] if 'textures' in data else []):
                     texture_name = os.path.basename(texture['name'])
                     for mat in data.materials:
                         if mat.tids[0]==i:
-                            images[i] = (texture_name, load_image(texture_name, dirname, check_existing=True,
+                            images[i] = (texture_name, load_image(texture_name, game_path, check_existing=True,
                                 place_holder=False, recursive=IMAGE_SEARCH))
 
                 for i, mat in enumerate(data.materials if 'materials' in data else []):
@@ -543,19 +668,16 @@ def import_scene(context, filepath, report):
                 bm.to_mesh(ob_data)
                 bm.free()
 
-            object_mesh = bpy.data.objects.new("mesh %s" % entity_idx, ob_data)
+            object_mesh = bpy.data.objects.new("%s mesh" % entity_idx, ob_data)
             object_mesh.rmesh.object_type = str(ObjectType.entity_mesh.value)
-            entity_mesh_collection.objects.link(object_mesh)
+            entity_collection.objects.link(object_mesh)
 
             object_mesh.rmesh.model_path = model_path
             object_mesh.rmesh.texture_path = texture_path
 
-            x, y, z = entity_dict["euler_rotation"]
-
             object_mesh.location = pivot_matrix @ Vector(entity_dict["position"])
-            object_mesh.rotation_euler = Euler((radians(-x), radians(z), radians(y)))
+            object_mesh.rotation_euler = get_blender_rot_test1(entity_dict["euler_rotation"])
             object_mesh.scale = Vector(entity_dict["scale"])
-
 
             object_mesh.rmesh.has_collision = bool(entity_dict["has_collision"])
             object_mesh.rmesh.fx = entity_dict["fx"]
