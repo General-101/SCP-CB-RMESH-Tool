@@ -1,3 +1,4 @@
+import re
 import os
 import bpy
 import bmesh
@@ -6,7 +7,7 @@ import colorsys
 from mathutils import Euler, Matrix, Vector, Quaternion
 from .process_rmesh import TextureType, write_rmesh, read_rmesh
 from . import ObjectType
-from math import radians, pi
+from math import radians, pi, degrees
 from .B3DParser import B3DTree
 from .scene_b3d import import_node_recursive
 from bpy_extras.image_utils import load_image
@@ -65,6 +66,10 @@ class RandomColorGenerator(PreshingSequenceGenerator32):
         rgb = colorsys.hsv_to_rgb(h, s, v)
         colors = (rgb[0], rgb[1] , rgb[2], 1)
         return colors
+
+def natural_key(s):
+    return [int(t) if t.isdigit() else t.lower()
+            for t in re.split(r'(\d+)', s)]
 
 def get_referenced_collection(collection_name, parent_collection, hide_render=False, hide_viewport=False):
     asset_collection = bpy.data.collections.get(collection_name)
