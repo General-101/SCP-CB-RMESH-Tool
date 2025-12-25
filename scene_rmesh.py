@@ -582,6 +582,7 @@ def import_scene(context, filepath, report):
 
             object_mesh.location = pivot_matrix @ Vector(entity_dict["position"])
             object_data.energy = entity_dict["intensity"] * 50
+            object_data.shadow_soft_size = entity_dict["range"] / 1000
             object_data.use_custom_distance = True
             object_data.cutoff_distance = entity_dict["range"]
             r, g, b = entity_dict["color"].split(" ")
@@ -595,6 +596,7 @@ def import_scene(context, filepath, report):
 
             object_mesh.location = pivot_matrix @ Vector(entity_dict["position"])
             object_data.energy = entity_dict["intensity"] * 50
+            object_data.shadow_soft_size = entity_dict["range"] / 1000
             object_data.use_custom_distance = True
             object_data.cutoff_distance = entity_dict["range"]
             r, g, b = entity_dict["color"].split(" ")
@@ -612,6 +614,7 @@ def import_scene(context, filepath, report):
             object_mesh.matrix_world = pivot_matrix @ global_transform
 
             object_data.energy = entity_dict["intensity"] * 50
+            object_data.shadow_soft_size = entity_dict["range"] / 1000
             object_data.use_custom_distance = True
             object_data.cutoff_distance = entity_dict["range"]
             r, g, b = entity_dict["color"].split(" ")
