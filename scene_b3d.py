@@ -18,10 +18,12 @@ def import_mesh(node, material_mapping, bm):
     for face in node.faces:
         faces.extend(face.indices)
 
-    vertices = [Vector(vertex) for vertex in node.vertices]
+    pivot_matrix = Matrix.Rotation(radians(90), 4, 'X') @  Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0)) @ Matrix.Scale(0.00625, 4)
+    pivot_matrix = Matrix()
+    vertices = [pivot_matrix @ Vector(vertex) for vertex in node.vertices]
 
     # create mesh from data
-    mesh.from_pydata(vertices, [], flip_all(faces))
+    mesh.from_pydata(vertices, [], faces)
     for poly in mesh.polygons:
         poly.use_smooth = True
 
