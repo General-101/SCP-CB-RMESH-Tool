@@ -8,7 +8,7 @@ from mathutils import Euler, Matrix, Vector, Quaternion
 from .process_rmesh import TextureType, write_rmesh, read_rmesh
 from . import ObjectType
 from math import radians, pi, degrees, asin, atan2
-from .B3DParser import B3DTree
+from .process_b3d import B3DTree
 from .scene_b3d import import_node_recursive
 from bpy_extras.image_utils import load_image
 
@@ -189,9 +189,15 @@ def get_blitz_rot(rot):
 
     return (pitch * RTOD, yaw * RTOD, roll * RTOD)
 
-def export_scene(context, filepath, report):
+def export_scene(context, filepath, game_title, report):
+    is_rmesh2 = False
+    rmesh_file_type = "RoomMesh"
+    if game_title == "2":
+        is_rmesh2 = True
+        rmesh_file_type = "RoomMesh2"
+
     rmesh_dict = {
-        "rmesh_file_type": "RoomMesh",
+        "rmesh_file_type": rmesh_file_type,
         "meshes": [],
         "collision_meshes": [],
         "entities": []
@@ -267,25 +273,32 @@ def export_scene(context, filepath, report):
 
                 pos = pivot_matrix @ (ob_eval.matrix_world @ v.co)
 
-                uv1 = (0.0, 0.0)
-                uv2 = (0.0, 0.0)
+                uv_render = (0.0, 0.0)
+                uv_lightmap = (0.0, 0.0)
                 if layer_uv_0:
                     u0, v0 = layer_uv_0.data[loop_index].uv
-                    uv1 = (u0, 1 - v0)
+                    uv_render = (u0, 1 - v0)
 
                 if layer_uv_1:
                     u1, v1 = layer_uv_1.data[loop_index].uv
-                    uv2 = (u1, 1 - v1)
+                    uv_lightmap = (u1, 1 - v1)
 
                 color = (0, 0, 0)
                 if layer_color:
                     r, g, b, a = layer_color.data[loop_index].color
                     color = (int(round(r * 255)), int(round(g * 255)), int(round(b * 255)))
 
-                key = (round(pos.x, 6), round(pos.y, 6), round(pos.z, 6), uv1, uv2, color)
+                if is_rmesh2:
+                    key = (round(pos.x, 6), round(pos.y, 6), round(pos.z, 6), uv_render, uv_lightmap, color, loop.normal)
+                else:
+                    key = (round(pos.x, 6), round(pos.y, 6), round(pos.z, 6), uv_render, uv_lightmap, color)
                 if key not in vertex_map:
                     vertex_map[key] = len(mesh_section["vertices"])
-                    mesh_section["vertices"].append({"position": pos, "uv1": uv1, "uv2": uv2, "color": color})
+                    vert_dict = {"position": pos, "uv_render": uv_render, "uv_lightmap": uv_lightmap, "color": color}
+                    if is_rmesh2:
+                        vert_dict["normal"] = loop.normal
+
+                    mesh_section["vertices"].append(vert_dict)
 
                 tri_indices.append(vertex_map[key])
 
@@ -408,6 +421,11 @@ def export_scene(context, filepath, report):
                 entity_dict["model_name"] = os.path.basename(bpy.path.abspath(ob.rmesh.model_path))
                 rmesh_dict["entities"].append(entity_dict)
 
+                if is_rmesh2:
+                    entity_dict["position"] = loc
+                    entity_dict["euler_rotation"] = get_blitz_rot(rot)
+                    entity_dict["scale"] = scale
+
             elif object_type == ObjectType.entity_mesh:
                 entity_dict = {}
 
@@ -429,9 +447,14 @@ def export_scene(context, filepath, report):
 def import_scene(context, filepath, report):
     rmesh_dict = read_rmesh(filepath)
 
+    is_rmesh2 = False
+    if rmesh_dict["rmesh_file_type"] == "RoomMesh2":
+        is_rmesh2 = True
+
     game_path = bpy.context.preferences.addons["io_scene_rmesh"].preferences.game_path
 
     pivot_matrix = Matrix.Rotation(radians(90), 4, 'X') @  Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0)) @ Matrix.Scale(0.00625, 4)
+    pivot_matrix2 = Matrix.Rotation(radians(90), 4, 'X') @  Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0))
 
     mesh_collection = get_referenced_collection("meshes", context.scene.collection, False)
     collision_collection = get_referenced_collection("collisions", context.scene.collection, True)
@@ -473,7 +496,6 @@ def import_scene(context, filepath, report):
 
         bdsf_principled.location = (-440.0, 0.0)
 
-        lightmap_type = TextureType.none
         texture_lightmap = None
         diffuse_type = TextureType.none
         texture_diffuse = None
@@ -507,15 +529,24 @@ def import_scene(context, filepath, report):
         layer_color = mesh.color_attributes.new("color", "BYTE_COLOR", "CORNER")
         layer_uv_0 = mesh.uv_layers.new(name="uvmap_render")
         layer_uv_1 = mesh.uv_layers.new(name="uvmap_lightmap")
+
+        if is_rmesh2:
+            loop_normals = [Vector() for loop in mesh.loops]
+
         for poly in mesh.polygons:
             poly.use_smooth = True
             poly.material_index = mesh_idx
             for loop_index in poly.loop_indices:
                 vert_index = mesh.loops[loop_index].vertex_index
                 vertex = mesh_dict["vertices"][vert_index]
-                layer_uv_0.data[loop_index].uv = (vertex["uv1"][0], 1 - vertex["uv1"][1])
-                layer_uv_1.data[loop_index].uv = (vertex["uv2"][0], 1 - vertex["uv2"][1])
+                layer_uv_0.data[loop_index].uv = (vertex["uv_render"][0], 1 - vertex["uv_render"][1])
+                layer_uv_1.data[loop_index].uv = (vertex["uv_lightmap"][0], 1 - vertex["uv_lightmap"][1])
                 layer_color.data[loop_index].color = (vertex["color"][0] / 255, vertex["color"][1] / 255, vertex["color"][2] / 255, 1.0)
+                if is_rmesh2:
+                    loop_normals[loop_index] = Vector(vertex["normal"])
+
+        if is_rmesh2:
+            mesh.normals_split_custom_set(loop_normals)
 
         bm.from_mesh(mesh)
         bpy.data.meshes.remove(mesh)
@@ -583,8 +614,6 @@ def import_scene(context, filepath, report):
             object_mesh.location = pivot_matrix @ Vector(entity_dict["position"])
             object_data.energy = entity_dict["intensity"] * 50
             object_data.shadow_soft_size = entity_dict["range"] / 1000
-            object_data.use_custom_distance = True
-            object_data.cutoff_distance = entity_dict["range"]
             r, g, b = entity_dict["color"].split(" ")
             object_data.color = (int(r) / 255, int(g) / 255, int(b) / 255)
 
@@ -597,8 +626,6 @@ def import_scene(context, filepath, report):
             object_mesh.location = pivot_matrix @ Vector(entity_dict["position"])
             object_data.energy = entity_dict["intensity"] * 50
             object_data.shadow_soft_size = entity_dict["range"] / 1000
-            object_data.use_custom_distance = True
-            object_data.cutoff_distance = entity_dict["range"]
             r, g, b = entity_dict["color"].split(" ")
             object_data.color = (int(r) / 255, int(g) / 255, int(b) / 255)
 
@@ -608,24 +635,33 @@ def import_scene(context, filepath, report):
             object_mesh.rmesh.object_type = str(ObjectType.entity_spotlight.value)
             entity_collection.objects.link(object_mesh)
 
-            p, y, r = entity_dict["euler_rotation"].split(" ")
-            rotation = get_blender_rot([float(p), float(y), float(r)])
-            global_transform = Matrix.LocRotScale(Vector(entity_dict["position"]), rotation, Vector((1, 1, 1)))
-            object_mesh.matrix_world = pivot_matrix @ global_transform
-
             object_data.energy = entity_dict["intensity"] * 50
             object_data.shadow_soft_size = entity_dict["range"] / 1000
-            object_data.use_custom_distance = True
-            object_data.cutoff_distance = entity_dict["range"]
             r, g, b = entity_dict["color"].split(" ")
             object_data.color = (int(r) / 255, int(g) / 255, int(b) / 255)
 
-            outer_deg: float = max(1.0, min(180.0, entity_dict["outer_cone_angle"]))
-            inner_deg: float = max(1.0, min(180.0, entity_dict["inner_cone_angle"]))
-            ratio = inner_deg / outer_deg if outer_deg > 0.0 else 1.0
+            if is_rmesh2:
+                object_data.use_shadow = bool(entity_dict["casts_shadows"])
+                x, y = entity_dict["direction"]
 
-            object_data.spot_size = radians(outer_deg)
-            object_data.spot_blend = max(0.0, min(1.0, 1.0 - ratio))
+                rotation = get_blender_rot([x, y, 0])
+                object_data.spot_size = radians(entity_dict["inner_cosine"])
+                object_data.spot_blend = entity_dict["scattering"]
+            else:
+                outer_deg: float = max(1.0, min(180.0, entity_dict["outer_cone_angle"]))
+                inner_deg: float = max(1.0, min(180.0, entity_dict["inner_cone_angle"]))
+                ratio = inner_deg / outer_deg if outer_deg > 0.0 else 1.0
+
+                object_data.spot_size = radians(outer_deg)
+                object_data.spot_blend = max(0.0, min(1.0, 1.0 - ratio))
+
+                p, y, r = entity_dict["euler_rotation"].split(" ")
+                rotation = get_blender_rot([float(p), float(y), float(r)])
+    
+            loc, rot, sca = (pivot_matrix @ Matrix.LocRotScale(Vector(entity_dict["position"]), rotation, Vector((1,1,1)))).decompose()
+            global_transform = Matrix.LocRotScale(loc, rot, Vector((1, 1, 1)))
+            
+            object_mesh.matrix_world =  global_transform
 
         elif entity_dict["entity_type"] == "soundemitter":
             speaker_data = bpy.data.speakers.new("%s soundemitter" % entity_idx)
@@ -642,6 +678,11 @@ def import_scene(context, filepath, report):
             entity_collection.objects.link(object_mesh)
             model_path = get_file(entity_dict["model_name"], False)
             object_mesh.rmesh.model_path = model_path
+            if is_rmesh2:
+                loc, rot, sca = (pivot_matrix @ Matrix.LocRotScale(Vector(entity_dict["position"]), get_blender_rot(entity_dict["euler_rotation"]), Vector((1,1,1)))).decompose()
+                global_transform = Matrix.LocRotScale(loc, rot, Vector(entity_dict["scale"]))
+                
+                object_mesh.matrix_world =  global_transform
 
         elif entity_dict["entity_type"] == "mesh":
             model_path = get_file(entity_dict["model_name"], False)
@@ -662,7 +703,7 @@ def import_scene(context, filepath, report):
                     material = bpy.data.materials.new(mat.name)
                     material.diffuse_color = random_color_gen.next()
                     material_mapping[i] = material.name
-                    #material.diffuse_color = mat.rgba
+                    #material.diffuse_color = mat.rgba #B3D models have a material color but we're not exporting these so who cares.
                     material.blend_method = 'BLEND' if mat.rgba[3] < 1.0 else 'OPAQUE'
 
                     tid = mat.tids[0] if len(mat.tids) else -1
@@ -691,9 +732,10 @@ def import_scene(context, filepath, report):
             object_mesh.rmesh.model_path = model_path
             object_mesh.rmesh.texture_path = texture_path
 
-            rotation = get_blender_rot(entity_dict["euler_rotation"])
-            global_transform = Matrix.LocRotScale(Vector(entity_dict["position"]), rotation, Vector(entity_dict["scale"]))
-            object_mesh.matrix_world = pivot_matrix @ global_transform
+            loc, rot, sca = (pivot_matrix @ Matrix.LocRotScale(Vector(entity_dict["position"]), get_blender_rot(entity_dict["euler_rotation"]), Vector((1,1,1)))).decompose()
+            global_transform = Matrix.LocRotScale(loc, rot, Vector(entity_dict["scale"]))
+            
+            object_mesh.matrix_world =  global_transform
 
             object_mesh.rmesh.has_collision = bool(entity_dict["has_collision"])
             object_mesh.rmesh.fx = entity_dict["fx"]
@@ -703,4 +745,3 @@ def import_scene(context, filepath, report):
 
     report({'INFO'}, "Export completed successfully")
     return {'FINISHED'}
-

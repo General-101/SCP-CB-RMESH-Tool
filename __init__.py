@@ -20,6 +20,7 @@ from bpy.props import (
         IntProperty,
         BoolProperty,
         EnumProperty,
+        FloatProperty,
         StringProperty,
         PointerProperty,
         CollectionProperty
@@ -111,6 +112,28 @@ class RMESHObjectPropertiesGroup(PropertyGroup):
 
     fx: IntProperty(
         name = "FX",
+        description = "???"
+        )
+    
+    has_sprite: BoolProperty(
+        name ="Has Sprite",
+        description = "Has Sprite",
+        default = False,
+        )
+    
+    sprite_scale: FloatProperty(
+        name = "Sprite Scale",
+        description = "???"
+        )
+    
+    casts_shadows: BoolProperty(
+        name ="Casts Shadows",
+        description = "Casts Shadows",
+        default = False,
+        )
+    
+    scattering: FloatProperty(
+        name = "Scattering",
         description = "???"
         )
 
@@ -206,6 +229,15 @@ class ExportRMESH(Operator, ExportHelper):
     bl_label = 'Export RMESH'
     filename_ext = '.rmesh'
 
+    game_title: EnumProperty(
+        name="Game Title:",
+        description="What game was the model file made for",
+        items=[ ('0', "Retail", "Import an RMESH intended for the original SCP CB"),
+                ('1', "UER", "Import an RMESH intended for SCP CB UER 1.5.6"),
+                ('2', "UER2", "Import an RMESH intended for SCP CB UER 2.0"),
+            ]
+        )
+
     filter_glob: StringProperty(
         default="*.rmesh",
         options={'HIDDEN'},
@@ -214,7 +246,7 @@ class ExportRMESH(Operator, ExportHelper):
     def execute(self, context):
         from . import scene_rmesh
 
-        return scene_rmesh.export_scene(context, self.filepath, self.report)
+        return scene_rmesh.export_scene(context, self.filepath, self.game_title, self.report)
 
 class ImportRMESH(Operator, ImportHelper):
     """Import an RMESH file"""

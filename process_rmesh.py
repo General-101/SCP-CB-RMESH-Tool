@@ -38,9 +38,15 @@ def write_float(rmesh_stream, value):
 
 def read_vector(rmesh_stream):
     return struct.unpack('<3f', rmesh_stream.read(12))
-    
+
 def write_vector(rmesh_stream, value):
     rmesh_stream.write(struct.pack('<3f', *value))
+
+def read_2d_vector(rmesh_stream):
+    return struct.unpack('<2f', rmesh_stream.read(8))
+
+def write_2d_vector(rmesh_stream, value):
+    rmesh_stream.write(struct.pack('<2f', *value))
 
 def read_uv(rmesh_stream):
     return struct.unpack('<2f', rmesh_stream.read(8))
@@ -62,10 +68,13 @@ def read_rmesh(file_path):
         "entities": []
     }
     with open(file_path, "rb") as rmesh_stream:
-        has_room_template = True
         rmesh_dict["rmesh_file_type"] = read_string(rmesh_stream)
-        if rmesh_dict["rmesh_file_type"] != "RoomMesh":
-            raise ValueError('Input file was "%s" instead of "RoomMesh and therefore is not an RMESH file' % rmesh_dict["rmesh_file_type"])
+        if rmesh_dict["rmesh_file_type"] != "RoomMesh" and rmesh_dict["rmesh_file_type"] != "RoomMesh2":
+            raise ValueError('Input file was "%s" instead of "RoomMesh or RoomMesh2 and therefore is not an RMESH file' % rmesh_dict["rmesh_file_type"])
+
+        is_rmesh2 = False
+        if rmesh_dict["rmesh_file_type"] == "RoomMesh2":
+            is_rmesh2 = True
 
         mesh_count = read_unsigned_int(rmesh_stream)
         for mesh_idx in range(mesh_count):
@@ -90,9 +99,14 @@ def read_rmesh(file_path):
                 vertex_dict = {}
 
                 vertex_dict["position"] = read_vector(rmesh_stream)
-                vertex_dict["uv1"] = read_uv(rmesh_stream)
-                vertex_dict["uv2"] = read_uv(rmesh_stream)
+                vertex_dict["uv_render"] = read_uv(rmesh_stream)
+                vertex_dict["uv_lightmap"] = read_uv(rmesh_stream)
                 vertex_dict["color"] = read_color(rmesh_stream)
+                if is_rmesh2:
+                    vertex_dict["normal"] = read_vector(rmesh_stream)
+                    print(vertex_dict["position"])
+                    print(vertex_dict["normal"])
+                    print()
 
                 mesh_dict["vertices"].append(vertex_dict)
 
@@ -136,73 +150,119 @@ def read_rmesh(file_path):
             rmesh_dict["collision_meshes"].append(mesh_dict)
 
         entity_count = read_unsigned_int(rmesh_stream)
-        if has_room_template: # original this was the arg rt in the original function. Need to find out if this is just a given. - Gen
-            for entity_idx in range(entity_count):
-                entity_dict = {}
-                entity_dict["entity_type"] = read_string(rmesh_stream)
-                if entity_dict["entity_type"] == "screen": # Unused in UER. Legacy? - Gen
-                    entity_dict["position"] = read_vector(rmesh_stream)
-                    entity_dict["texture_name"] = read_string(rmesh_stream)
+        for entity_idx in range(entity_count):
+            entity_dict = {}
+            entity_dict["entity_type"] = read_string(rmesh_stream)
+            if entity_dict["entity_type"] == "screen":
+                entity_dict["position"] = read_vector(rmesh_stream)
+                entity_dict["texture_name"] = read_string(rmesh_stream)
 
-                elif entity_dict["entity_type"] == "save_screen":
-                    entity_dict["position"] = read_vector(rmesh_stream)
-                    entity_dict["model_name"] = read_string(rmesh_stream)
-                    entity_dict["euler_rotation"] = read_vector(rmesh_stream)
-                    entity_dict["scale"] = read_vector(rmesh_stream)
-                    entity_dict["texture_name"] = read_string(rmesh_stream)
+            elif entity_dict["entity_type"] == "save_screen":
+                entity_dict["position"] = read_vector(rmesh_stream)
+                entity_dict["model_name"] = read_string(rmesh_stream)
+                entity_dict["euler_rotation"] = read_vector(rmesh_stream)
+                entity_dict["scale"] = read_vector(rmesh_stream)
+                entity_dict["texture_name"] = read_string(rmesh_stream)
 
-                elif entity_dict["entity_type"] == "waypoint":
-                    entity_dict["position"] = read_vector(rmesh_stream)
+            elif entity_dict["entity_type"] == "waypoint":
+                entity_dict["position"] = read_vector(rmesh_stream)
 
-                elif entity_dict["entity_type"] == "light":
+            elif entity_dict["entity_type"] == "light":
+                if is_rmesh2:
+                    entity_dict["position"] = read_vector(rmesh_stream)
+                    entity_dict["range"] = read_float(rmesh_stream)
+                    entity_dict["color"] = read_string(rmesh_stream)
+                    entity_dict["intensity"] = read_float(rmesh_stream)
+                    entity_dict["has_sprite"] = read_byte(rmesh_stream)
+                    entity_dict["sprite_scale"] = read_float(rmesh_stream)
+                    entity_dict["casts_shadows"] = read_byte(rmesh_stream)
+                    entity_dict["scattering"] = read_float(rmesh_stream)
+                    entity_dict["ff_array"] = []
+                    for ff in range(31):
+                        ff_element = read_unsigned_int(rmesh_stream)
+                        entity_dict["ff_array"].append(ff_element)
+                else:
                     entity_dict["position"] = read_vector(rmesh_stream)
                     entity_dict["range"] = read_float(rmesh_stream)
                     entity_dict["color"] = read_string(rmesh_stream)
                     entity_dict["intensity"] = read_float(rmesh_stream)
 
-                elif entity_dict["entity_type"] == "light_fix":
+            elif entity_dict["entity_type"] == "light_fix":
+                if is_rmesh2:
+                    entity_dict["position"] = read_vector(rmesh_stream)
+                    entity_dict["range"] = read_float(rmesh_stream)
+                    entity_dict["color"] = read_string(rmesh_stream)
+                    entity_dict["intensity"] = read_float(rmesh_stream)
+                    entity_dict["has_sprite"] = read_byte(rmesh_stream)
+                    entity_dict["sprite_scale"] = read_float(rmesh_stream)
+                    entity_dict["casts_shadows"] = read_byte(rmesh_stream)
+                    entity_dict["scattering"] = read_float(rmesh_stream)
+                    entity_dict["ff_array"] = []
+                    for ff in range(31):
+                        ff_element = read_unsigned_int(rmesh_stream)
+                        entity_dict["ff_array"].append(ff_element)
+                else:
                     entity_dict["position"] = read_vector(rmesh_stream)
                     entity_dict["color"] = read_string(rmesh_stream)
                     entity_dict["intensity"] = read_float(rmesh_stream)
                     entity_dict["range"] = read_float(rmesh_stream)
 
-                elif entity_dict["entity_type"] == "spotlight": # Unused in UER. Legacy? - Gen
-                    entity_dict["position"] = read_vector(rmesh_stream)
-                    entity_dict["range"] = read_float(rmesh_stream)
-                    entity_dict["color"] = read_string(rmesh_stream)
-                    entity_dict["intensity"] = read_float(rmesh_stream)
+            elif entity_dict["entity_type"] == "spotlight":
+                entity_dict["position"] = read_vector(rmesh_stream)
+                entity_dict["range"] = read_float(rmesh_stream)
+                entity_dict["color"] = read_string(rmesh_stream)
+                entity_dict["intensity"] = read_float(rmesh_stream)
+                if is_rmesh2:
+                    entity_dict["has_sprite"] = read_byte(rmesh_stream)
+                    entity_dict["sprite_scale"] = read_float(rmesh_stream)
+                    entity_dict["casts_shadows"] = read_byte(rmesh_stream)
+                    entity_dict["direction"] = read_2d_vector(rmesh_stream)
+                    entity_dict["inner_cosine"] = read_float(rmesh_stream)
+                    entity_dict["scattering"] = read_float(rmesh_stream)
+                    entity_dict["ff_array"] = []
+                    for ff in range(31):
+                        ff_element = read_unsigned_int(rmesh_stream)
+                        entity_dict["ff_array"].append(ff_element)
+                else:
                     entity_dict["euler_rotation"] = read_string(rmesh_stream)
                     entity_dict["inner_cone_angle"] = read_unsigned_int(rmesh_stream)
                     entity_dict["outer_cone_angle"] = read_unsigned_int(rmesh_stream)
 
-                elif entity_dict["entity_type"] == "soundemitter":
-                    entity_dict["position"] = read_vector(rmesh_stream)
-                    entity_dict["id"] = read_unsigned_int(rmesh_stream)
-                    entity_dict["range"] = read_float(rmesh_stream)
+            elif entity_dict["entity_type"] == "soundemitter":
+                entity_dict["position"] = read_vector(rmesh_stream)
+                entity_dict["id"] = read_unsigned_int(rmesh_stream)
+                entity_dict["range"] = read_float(rmesh_stream)
 
-                elif entity_dict["entity_type"] == "model": # Unused in UER. Legacy? - Gen
-                    entity_dict["model_name"] = read_string(rmesh_stream)
-
-                elif entity_dict["entity_type"] == "mesh":
-                    entity_dict["position"] = read_vector(rmesh_stream)
-                    entity_dict["model_name"] = read_string(rmesh_stream)
+            elif entity_dict["entity_type"] == "model":
+                entity_dict["model_name"] = read_string(rmesh_stream)
+                if is_rmesh2:
+                    vertex_dict["position"] = read_vector(rmesh_stream)
                     entity_dict["euler_rotation"] = read_vector(rmesh_stream)
                     entity_dict["scale"] = read_vector(rmesh_stream)
-                    entity_dict["has_collision"] = read_byte(rmesh_stream)
-                    entity_dict["fx"] = read_unsigned_int(rmesh_stream)
-                    entity_dict["texture_name"] = read_string(rmesh_stream)
-                else:
-                    print("Unknown entity type: %s" % entity_dict["entity_type"])
 
-                rmesh_dict["entities"].append(entity_dict)
+            elif entity_dict["entity_type"] == "mesh":
+                entity_dict["position"] = read_vector(rmesh_stream)
+                entity_dict["model_name"] = read_string(rmesh_stream)
+                entity_dict["euler_rotation"] = read_vector(rmesh_stream)
+                entity_dict["scale"] = read_vector(rmesh_stream)
+                entity_dict["has_collision"] = read_byte(rmesh_stream)
+                entity_dict["fx"] = read_unsigned_int(rmesh_stream)
+                entity_dict["texture_name"] = read_string(rmesh_stream)
+            else:
+                print("Unknown entity type: %s" % entity_dict["entity_type"])
+
+            rmesh_dict["entities"].append(entity_dict)
 
     return rmesh_dict
 
 def write_rmesh(rmesh_dict, output_path):
     with open(output_path, "wb") as rmesh_stream:
-        has_room_template = True
-        if rmesh_dict["rmesh_file_type"] != "RoomMesh":
+        if rmesh_dict["rmesh_file_type"] != "RoomMesh" and rmesh_dict["rmesh_file_type"] != "RoomMesh2":
             raise ValueError("Input is not an RMESH file")
+
+        is_rmesh2 = False
+        if rmesh_dict["rmesh_file_type"] == "RoomMesh2":
+            is_rmesh2 = True
 
         write_string(rmesh_stream, rmesh_dict["rmesh_file_type"])
         write_unsigned_int(rmesh_stream, len(rmesh_dict["meshes"]))
@@ -215,9 +275,11 @@ def write_rmesh(rmesh_dict, output_path):
             write_unsigned_int(rmesh_stream, len(mesh_dict["vertices"]))
             for vertex_dict in mesh_dict["vertices"]:
                 write_vector(rmesh_stream, vertex_dict["position"])
-                write_uv(rmesh_stream, vertex_dict["uv1"])
-                write_uv(rmesh_stream, vertex_dict["uv2"])
+                write_uv(rmesh_stream, vertex_dict["uv_render"])
+                write_uv(rmesh_stream, vertex_dict["uv_lightmap"])
                 write_color(rmesh_stream, vertex_dict["color"])
+                if is_rmesh2:
+                    write_vector(rmesh_stream, vertex_dict["normal"])
 
             write_unsigned_int(rmesh_stream, len(mesh_dict["triangles"]))
             for triangle_dict in mesh_dict["triangles"]:
@@ -238,57 +300,94 @@ def write_rmesh(rmesh_dict, output_path):
                 write_unsigned_int(rmesh_stream, triangle_dict["c"])
 
         write_unsigned_int(rmesh_stream, len(rmesh_dict["entities"]))
-        if has_room_template: # originally this was the arg rt in the original function. Need to find out if this is just a given. - Gen
-            for entity_dict in rmesh_dict["entities"]:
-                write_string(rmesh_stream, entity_dict["entity_type"])
-                if entity_dict["entity_type"] == "screen":
-                    write_vector(rmesh_stream, entity_dict["position"])
-                    write_string(rmesh_stream, entity_dict["texture_name"])
+        for entity_dict in rmesh_dict["entities"]:
+            write_string(rmesh_stream, entity_dict["entity_type"])
+            if entity_dict["entity_type"] == "screen":
+                write_vector(rmesh_stream, entity_dict["position"])
+                write_string(rmesh_stream, entity_dict["texture_name"])
 
-                elif entity_dict["entity_type"] == "save_screen":
-                    write_vector(rmesh_stream, entity_dict["position"])
-                    write_string(rmesh_stream, entity_dict["model_name"])
-                    write_vector(rmesh_stream, entity_dict["euler_rotation"])
-                    write_vector(rmesh_stream, entity_dict["scale"])
-                    write_string(rmesh_stream, entity_dict["texture_name"])
+            elif entity_dict["entity_type"] == "save_screen":
+                write_vector(rmesh_stream, entity_dict["position"])
+                write_string(rmesh_stream, entity_dict["model_name"])
+                write_vector(rmesh_stream, entity_dict["euler_rotation"])
+                write_vector(rmesh_stream, entity_dict["scale"])
+                write_string(rmesh_stream, entity_dict["texture_name"])
 
-                elif entity_dict["entity_type"] == "waypoint":
-                    write_vector(rmesh_stream, entity_dict["position"])
+            elif entity_dict["entity_type"] == "waypoint":
+                write_vector(rmesh_stream, entity_dict["position"])
 
-                elif entity_dict["entity_type"] == "light":
+            elif entity_dict["entity_type"] == "light":
+                if is_rmesh2:
+                    write_vector(rmesh_stream, entity_dict["position"])
+                    write_float(rmesh_stream, entity_dict["range"])
+                    write_string(rmesh_stream, entity_dict["color"])
+                    write_float(rmesh_stream, entity_dict["intensity"])
+                    write_byte(rmesh_stream, entity_dict["has_sprite"])
+                    write_float(rmesh_stream, entity_dict["sprite_scale"])
+                    write_byte(rmesh_stream, entity_dict["casts_shadows"])
+                    write_float(rmesh_stream, entity_dict["scattering"])
+                    for ff_element in entity_dict["ff_array"]:
+                        write_unsigned_int(rmesh_stream, ff_element)
+                else:
                     write_vector(rmesh_stream, entity_dict["position"])
                     write_float(rmesh_stream, entity_dict["range"])
                     write_string(rmesh_stream, entity_dict["color"])
                     write_float(rmesh_stream, entity_dict["intensity"])
 
-                elif entity_dict["entity_type"] == "light_fix":
+            elif entity_dict["entity_type"] == "light_fix":
+                if is_rmesh2:
+                    write_vector(rmesh_stream, entity_dict["position"])
+                    write_float(rmesh_stream, entity_dict["range"])
+                    write_string(rmesh_stream, entity_dict["color"])
+                    write_float(rmesh_stream, entity_dict["intensity"])
+                    write_byte(rmesh_stream, entity_dict["has_sprite"])
+                    write_float(rmesh_stream, entity_dict["sprite_scale"])
+                    write_byte(rmesh_stream, entity_dict["casts_shadows"])
+                    write_float(rmesh_stream, entity_dict["scattering"])
+                    for ff_element in entity_dict["ff_array"]:
+                        write_unsigned_int(rmesh_stream, ff_element)
+                else:
                     write_vector(rmesh_stream, entity_dict["position"])
                     write_string(rmesh_stream, entity_dict["color"])
                     write_float(rmesh_stream, entity_dict["intensity"])
                     write_float(rmesh_stream, entity_dict["range"])
 
-                elif entity_dict["entity_type"] == "spotlight":
-                    write_vector(rmesh_stream, entity_dict["position"])
-                    write_float(rmesh_stream, entity_dict["range"])
-                    write_string(rmesh_stream, entity_dict["color"])
-                    write_float(rmesh_stream, entity_dict["intensity"])
+            elif entity_dict["entity_type"] == "spotlight":
+                write_vector(rmesh_stream, entity_dict["position"])
+                write_float(rmesh_stream, entity_dict["range"])
+                write_string(rmesh_stream, entity_dict["color"])
+                write_float(rmesh_stream, entity_dict["intensity"])
+                if is_rmesh2:
+                    write_byte(rmesh_stream, entity_dict["has_sprite"])
+                    write_float(rmesh_stream, entity_dict["sprite_scale"])
+                    write_byte(rmesh_stream, entity_dict["casts_shadows"])
+                    write_2d_vector(rmesh_stream, entity_dict["direction"])
+                    write_float(rmesh_stream, entity_dict["inner_cosine"])
+                    write_float(rmesh_stream, entity_dict["scattering"])
+                    for ff_element in entity_dict["ff_array"]:
+                        write_unsigned_int(rmesh_stream, ff_element)
+                else:
                     write_string(rmesh_stream, entity_dict["euler_rotation"])
                     write_unsigned_int(rmesh_stream, entity_dict["inner_cone_angle"])
                     write_unsigned_int(rmesh_stream, entity_dict["outer_cone_angle"])
 
-                elif entity_dict["entity_type"] == "soundemitter":
-                    write_vector(rmesh_stream, entity_dict["position"])
-                    write_unsigned_int(rmesh_stream, entity_dict["id"])
-                    write_float(rmesh_stream, entity_dict["range"])
+            elif entity_dict["entity_type"] == "soundemitter":
+                write_vector(rmesh_stream, entity_dict["position"])
+                write_unsigned_int(rmesh_stream, entity_dict["id"])
+                write_float(rmesh_stream, entity_dict["range"])
 
-                elif entity_dict["entity_type"] == "model":
-                    write_string(rmesh_stream, entity_dict["model_name"])
-
-                elif entity_dict["entity_type"] == "mesh":
+            elif entity_dict["entity_type"] == "model":
+                write_string(rmesh_stream, entity_dict["model_name"])
+                if is_rmesh2:
                     write_vector(rmesh_stream, entity_dict["position"])
-                    write_string(rmesh_stream, entity_dict["model_name"])
                     write_vector(rmesh_stream, entity_dict["euler_rotation"])
                     write_vector(rmesh_stream, entity_dict["scale"])
-                    write_byte(rmesh_stream, entity_dict["has_collision"])
-                    write_unsigned_int(rmesh_stream, entity_dict["fx"])
-                    write_string(rmesh_stream, entity_dict["texture_name"])
+
+            elif entity_dict["entity_type"] == "mesh":
+                write_vector(rmesh_stream, entity_dict["position"])
+                write_string(rmesh_stream, entity_dict["model_name"])
+                write_vector(rmesh_stream, entity_dict["euler_rotation"])
+                write_vector(rmesh_stream, entity_dict["scale"])
+                write_byte(rmesh_stream, entity_dict["has_collision"])
+                write_unsigned_int(rmesh_stream, entity_dict["fx"])
+                write_string(rmesh_stream, entity_dict["texture_name"])
