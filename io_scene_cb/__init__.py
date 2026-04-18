@@ -47,6 +47,12 @@ class SCPCBAddonPrefs(bpy.types.AddonPreferences):
         subtype="DIR_PATH"
     )
 
+    room_scale: FloatProperty(
+        name = "Room Scale",
+        description = "Set scale for model data",
+        default=0.00625,
+        )
+
     def draw(self, context):
         layout = self.layout
 
@@ -56,6 +62,9 @@ class SCPCBAddonPrefs(bpy.types.AddonPreferences):
         row = col.row()
         row.label(text='Game Path:')
         row.prop(self, "game_path", text='')
+        row = col.row()
+        row.label(text='Room Scale:')
+        row.prop(self, "room_scale", text='')
 
 class CBObjectPropertiesGroup(PropertyGroup):
     object_type: EnumProperty(
@@ -479,7 +488,7 @@ def render_entity_item(context, layout, active_property):
     box = layout.split()
     col = box.column(align=True)
     row = col.row()
-    row.operator("cbob.update_ob")
+    row.operator("cb.update_ob")
     row = col.row()
     row.label(text='Item Name:')
     row.prop(active_property, "item_name", text='')
@@ -500,7 +509,7 @@ def render_entity_door(context, layout, active_property):
     box = layout.split()
     col = box.column(align=True)
     row = col.row()
-    row.operator("cbob.update_ob")
+    row.operator("cb.update_ob")
     row = col.row()
     row.label(text='Door Type:')
     row.prop(active_property, "door_type", text='')
@@ -734,9 +743,8 @@ class ImportRMESH(Operator, ImportHelper):
     def execute(self, context):
         from . import scene_rmesh
 
-        return scene_rmesh.import_scene(context, Path(self.filepath), self.file_type, self.fullbright_materials, self.use_light_radius, 
-                                        self.split_by_material, self.import_meshes, self.import_collisions, self.import_trigger_boxes, self.import_entities, 
-                                        self.use_principled_bsdf, self.report)
+        return scene_rmesh.import_scene(context, Path(self.filepath), self.file_type, self.fullbright_materials, self.use_light_radius, self.split_by_material, 
+                                        self.import_meshes, self.import_collisions, self.import_trigger_boxes, self.import_entities, self.use_principled_bsdf, self.report)
 
     if (4, 1, 0) <= bpy.app.version:
         def invoke(self, context, event):

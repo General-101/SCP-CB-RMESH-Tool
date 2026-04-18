@@ -14,11 +14,10 @@ from .common_functions import (RandomColorGenerator,
                                get_shader_node,
                                connect_inputs,
                                generate_texture_mapping,
-                               SHADER_RESOURCES,
-                               ROOMSCALE)
+                               SHADER_RESOURCES)
 
-def import_mesh(data, node, random_color_gen, local_asset_path):
-    vertices = [ROOMSCALE * Vector(flip(vertex)) for vertex in node["vertices"]]
+def import_mesh(data, node, random_color_gen, local_asset_path, room_scale):
+    vertices = [room_scale * Vector(flip(vertex)) for vertex in node["vertices"]]
     mesh = bpy.data.meshes.new("mesh")
     mesh.from_pydata(vertices, [], node["faces"])
 
@@ -95,12 +94,12 @@ def import_mesh(data, node, random_color_gen, local_asset_path):
 
     return mesh
 
-def import_node_recursive(context, data, node, random_color_gen, local_asset_path, parent_ob=None):
+def import_node_recursive(context, data, node, random_color_gen, local_asset_path, room_scale, parent_ob=None):
     ob_index = data.get("ob_index")
     if ob_index is None:
         data["ob_index"] = 0
 
-    mesh_data = import_mesh(data, node, random_color_gen, local_asset_path)
+    mesh_data = import_mesh(data, node, random_color_gen, local_asset_path, room_scale)
     ob_data = bpy.data.objects.new("node_%s" % data["ob_index"], mesh_data)
     context.collection.objects.link(ob_data)
 
@@ -109,13 +108,14 @@ def import_node_recursive(context, data, node, random_color_gen, local_asset_pat
     if parent_ob:
         ob_data.parent = parent_ob
 
-    node_transform = Matrix.LocRotScale(ROOMSCALE * Vector(flip(node["position"])), Euler(node["rotation"]), Vector(flip(node["scale"])))
+    node_transform = Matrix.LocRotScale(room_scale * Vector(flip(node["position"])), Euler(node["rotation"]), Vector(flip(node["scale"])))
     ob_data.matrix_local = node_transform
     for child_node in node["nodes"]:
-        import_node_recursive(context, data, child_node, random_color_gen, local_asset_path, ob_data)
+        import_node_recursive(context, data, child_node, random_color_gen, local_asset_path, room_scale, ob_data)
 
 def import_scene(context, filepath, report):
     game_path = Path(bpy.context.preferences.addons[__package__].preferences.game_path)
+    room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
 
     local_asset_path = ""
     if not is_string_empty(str(game_path)) and str(filepath).startswith(str(game_path)):
@@ -127,7 +127,7 @@ def import_scene(context, filepath, report):
     random_color_gen = RandomColorGenerator() # generates a random sequence of colors
 
     for child_node in data["nodes"]:
-        import_node_recursive(context, data, child_node, random_color_gen, local_asset_path)
+        import_node_recursive(context, data, child_node, random_color_gen, local_asset_path, room_scale)
 
     report({'INFO'}, "Import completed successfully")
     return {'FINISHED'}

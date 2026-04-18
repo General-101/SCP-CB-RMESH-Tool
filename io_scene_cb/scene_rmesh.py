@@ -24,8 +24,7 @@ from .common_functions import (RandomColorGenerator,
                                get_shader_node,
                                generate_texture_mapping,
                                SHADER_RESOURCES,
-                               SHADER_NODE_NAMES,
-                               ROOMSCALE)
+                               SHADER_NODE_NAMES)
 
 MIN_BUTTON_LENGTH = 0.01
 
@@ -233,7 +232,7 @@ def collect_objects():
 
     return mesh_list, render_list, collision_list, trigger_box_list, entity_list
 
-def gather_mesh_data(ob, depsgraph, section_data, file_type, use_lightmap_name_override, is_collision=False):
+def gather_mesh_data(ob, depsgraph, section_data, file_type, use_lightmap_name_override, room_scale, is_collision=False):
     ob_eval = ob.evaluated_get(depsgraph)
     mesh = ob_eval.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
     mesh.calc_loop_triangles()
@@ -369,7 +368,7 @@ def gather_mesh_data(ob, depsgraph, section_data, file_type, use_lightmap_name_o
             i, j, k = loop.normal
             loop_normal = (i, j, k)
 
-            pos = (1.0 / ROOMSCALE) * Vector(flip((ob_eval.matrix_world @ v.co)))
+            pos = (1.0 / room_scale) * Vector(flip((ob_eval.matrix_world @ v.co)))
 
             uv_render = (0.0, 0.0)
             uv_lightmap = (0.0, 0.0)
@@ -410,6 +409,7 @@ def gather_mesh_data(ob, depsgraph, section_data, file_type, use_lightmap_name_o
 
 def export_scene(context, filepath, file_type, use_lightmap_name_override, report):
     game_path = Path(bpy.context.preferences.addons[__package__].preferences.game_path)
+    room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
 
     if context.view_layer.objects.active is not None:
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -450,21 +450,21 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
 
     mesh_section_data = {}
     for mesh_ob in mesh_list:
-        gather_mesh_data(mesh_ob, depsgraph, mesh_section_data, file_type, use_lightmap_name_override)
+        gather_mesh_data(mesh_ob, depsgraph, mesh_section_data, file_type, use_lightmap_name_override, room_scale)
 
     for mesh_dict in mesh_section_data.values():
         rmesh_dict["meshes"].append(mesh_dict)
 
     render_section_data = {}
     for render_ob in render_list:
-        gather_mesh_data(render_ob, depsgraph, render_section_data, file_type)
+        gather_mesh_data(render_ob, depsgraph, render_section_data, file_type, use_lightmap_name_override, room_scale)
 
     for render_dict in render_section_data.values():
         rmesh_dict["render_meshes"].append(render_dict)
 
     collision_section_data = {}
     for ob in collision_list:
-        gather_mesh_data(ob, depsgraph, collision_section_data, file_type, True)
+        gather_mesh_data(ob, depsgraph, collision_section_data, file_type, use_lightmap_name_override, room_scale, True)
 
     for collision_dict in collision_section_data.values():
         rmesh_dict["collision_meshes"].append(collision_dict)
@@ -486,7 +486,7 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
                 rmesh_dict["trigger_boxes"].append(trigger_entry)
 
             tb_section_data = {}
-            gather_mesh_data(ob, depsgraph, tb_section_data, file_type, True)
+            gather_mesh_data(ob, depsgraph, tb_section_data, file_type, use_lightmap_name_override, room_scale, True)
 
             for tb_dict in tb_section_data.values():
                 trigger_entry["meshes"].append(tb_dict)
@@ -505,7 +505,7 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
 
             entity_dict["texture_name"] = os.path.basename(bpy.path.abspath(ob.cb.texture_path))
             entity_dict["model_name"] = os.path.basename(bpy.path.abspath(ob.cb.model_path))
-            entity_dict["position"] = tuple((1.0 / ROOMSCALE) * Vector(flip(loc)))
+            entity_dict["position"] = tuple((1.0 / room_scale) * Vector(flip(loc)))
             entity_dict["euler_rotation"] = get_blitz_rot(rot)
             entity_dict["scale"] = flip(scl)
 
@@ -516,7 +516,7 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
             entity_dict = {}
 
             entity_dict["entity_type"] = "waypoint"
-            entity_dict["position"] = tuple((1.0 / ROOMSCALE) * Vector(flip(loc)))
+            entity_dict["position"] = tuple((1.0 / room_scale) * Vector(flip(loc)))
             rmesh_dict["entities"].append(entity_dict)
 
         elif object_type == ObjectType.entity_light:
@@ -529,9 +529,9 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
             else:
                 entity_dict["entity_type"] = "light"
 
-            entity_dict["position"] = tuple((1.0 / ROOMSCALE) * Vector(flip(loc)))
+            entity_dict["position"] = tuple((1.0 / room_scale) * Vector(flip(loc)))
             entity_dict["color"] = "%s %s %s" % (round(r * 255), round(g * 255), round(b * 255))
-            entity_dict["range"] = (1.0 / ROOMSCALE) * ob.data.shadow_soft_size
+            entity_dict["range"] = (1.0 / room_scale) * ob.data.shadow_soft_size
             entity_dict["intensity"] =  ob.data.energy
             if file_type == ExportFileType.rmesh_uer2:
                 entity_dict["has_sprite"] = ob.cb.has_sprite
@@ -550,9 +550,9 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
             entity_dict = {}
 
             entity_dict["entity_type"] = "spotlight"
-            entity_dict["position"] = tuple((1.0 / ROOMSCALE) * Vector(flip(loc)))
+            entity_dict["position"] = tuple((1.0 / room_scale) * Vector(flip(loc)))
             entity_dict["color"] = "%s %s %s" % (round(r * 255), round(g * 255), round(b * 255))
-            entity_dict["range"] = (1.0 / ROOMSCALE) * ob.data.shadow_soft_size
+            entity_dict["range"] = (1.0 / room_scale) * ob.data.shadow_soft_size
             entity_dict["intensity"] =  ob.data.energy
 
             if file_type == ExportFileType.rmesh_uer2:
@@ -581,7 +581,7 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
             entity_dict = {}
 
             entity_dict["entity_type"] = "soundemitter"
-            entity_dict["position"] = tuple((1.0 / ROOMSCALE) * Vector(flip(loc)))
+            entity_dict["position"] = tuple((1.0 / room_scale) * Vector(flip(loc)))
             entity_dict["id"] = ob.cb.sound_emitter_id
             entity_dict["range"] = ob.data.distance_max
             rmesh_dict["entities"].append(entity_dict)
@@ -606,7 +606,7 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
 
             entity_dict["model_name"] = model_name
             entity_dict["texture_name"] = texture_name
-            entity_dict["position"] = tuple((1.0 / ROOMSCALE) * Vector(flip(loc)))
+            entity_dict["position"] = tuple((1.0 / room_scale) * Vector(flip(loc)))
             entity_dict["euler_rotation"] = get_blitz_rot(rot)
             entity_dict["scale"] = flip(scl)
             entity_dict["has_collision"] = int(ob.cb.has_collision)
@@ -619,7 +619,7 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
             entity_dict = {}
 
             entity_dict["entity_type"] = "item"
-            entity_dict["position"] = tuple((1.0 / ROOMSCALE) * Vector(flip(loc)))
+            entity_dict["position"] = tuple((1.0 / room_scale) * Vector(flip(loc)))
             entity_dict["item_name"] = ob.cb.item_name
             entity_dict["model_name"] = ob.cb.model_path
             entity_dict["use_custom_rotation"] = ob.cb.use_custom_rotation
@@ -638,11 +638,11 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
             button_scale = Vector((7.68, 7.68, 7.68))
             door_type = DoorType(int(ob.cb.door_type))
             if door_type == DoorType.big:
-                ob_a_matrix = Matrix.LocRotScale(Vector((2.7, -1.2, 1.12)), Euler((0, 0, radians(-90))), button_scale)
-                ob_b_matrix = Matrix.LocRotScale(Vector((-2.7, 1.2, 1.12)), Euler((0, 0, radians(90))), button_scale)
+                ob_a_matrix = Matrix.LocRotScale((1.0 / room_scale) * Vector((432, -192, 179.2)), Euler((0, 0, radians(-90))), button_scale)
+                ob_b_matrix = Matrix.LocRotScale((1.0 / room_scale) * Vector((-432, 192, 179.2)), Euler((0, 0, radians(90))), button_scale)
             else:
-                ob_a_matrix = Matrix.LocRotScale(Vector((0.96, -0.16, 1.12)), Euler((0, 0, 0)), button_scale)
-                ob_b_matrix = Matrix.LocRotScale(Vector((-0.96, 0.16, 1.12)), Euler((0, 0, radians(180))), button_scale)
+                ob_a_matrix = Matrix.LocRotScale((1.0 / room_scale) * Vector((153.6, -25.6, 179.2)), Euler((0, 0, 0)), button_scale)
+                ob_b_matrix = Matrix.LocRotScale((1.0 / room_scale) * Vector((-153.6, 25.6, 179.2)), Euler((0, 0, radians(180))), button_scale)
 
             button_1_position = (0, 0, 0)
             button_1_angle = (0, 0, 0)
@@ -655,7 +655,7 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
                 loc_ba, rot_ba, scl_ba = local_bam.decompose()
                 if loc_ba.length >= MIN_BUTTON_LENGTH:
                     baw_loc, baw_rot, baw_scl = button_a_ob.matrix_world.decompose()
-                    button_1_position = flip((1.0 / ROOMSCALE) * baw_loc)
+                    button_1_position = flip((1.0 / room_scale) * baw_loc)
 
                 arx, ary, arz = get_blitz_rot(rot_ba)
                 button_1_angle = (round(arx), round(ary), round(arz))
@@ -665,13 +665,13 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
                 loc_bb, rot_bb, scl_bb = local_bbm.decompose()
                 if loc_bb.length >= MIN_BUTTON_LENGTH:
                     bbw_loc, bbw_rot, bbw_scl = button_a_ob.matrix_world.decompose()
-                    button_2_position = flip((1.0 / ROOMSCALE) * bbw_loc)
+                    button_2_position = flip((1.0 / room_scale) * bbw_loc)
 
                 brx, bry, brz = get_blitz_rot(rot_bb)
                 button_2_angle = (round(brx), round(bry), round(brz))
 
             entity_dict["entity_type"] = "door"
-            entity_dict["position"] = tuple((1.0 / ROOMSCALE) * Vector(flip(loc)))
+            entity_dict["position"] = tuple((1.0 / room_scale) * Vector(flip(loc)))
             entity_dict["door_type"] = door_type.value
             entity_dict["key_card_level"] = ob.cb.key_card_level
             entity_dict["keypad_code"] = ob.cb.keypad_code
@@ -692,14 +692,14 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
     report({'INFO'}, "Export completed successfully")
     return {'FINISHED'}
 
-def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, is_collision=False, use_principled_bsdf=False):
+def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, use_principled_bsdf, room_scale, is_collision=False):
     mesh_name = "temp_mesh"
     if mesh_data is None:
         mesh_name = "mesh"
 
     mesh = bpy.data.meshes.new("%s_%s" % (mesh_name, mesh_idx))
 
-    vertices = [ROOMSCALE * Vector(flip(vertex["position"])) for vertex in mesh_dict["vertices"]]
+    vertices = [room_scale * Vector(flip(vertex["position"])) for vertex in mesh_dict["vertices"]]
     triangles = [list(triangle.values())[::-1] for triangle in mesh_dict["triangles"]]
     mesh.from_pydata(vertices, [], triangles)
     mesh.validate(clean_customdata=True)
@@ -855,11 +855,12 @@ def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_
 
     return mesh
 
-def import_scene(context, filepath, file_type, fullbright_materials, use_light_radius, split_by_material, import_meshes, import_collisions, 
-                 import_trigger_boxes, import_entities, use_principled_bsdf, report):
+def import_scene(context, filepath, file_type, fullbright_materials, use_light_radius, split_by_material, import_meshes, import_collisions, import_trigger_boxes, 
+                 import_entities, use_principled_bsdf, report):
     file_type, rmesh_dict = read_rmesh(filepath, ImportFileType(int(file_type)))
 
     game_path = Path(bpy.context.preferences.addons[__package__].preferences.game_path)
+    room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
 
     random_color_gen = RandomColorGenerator() # generates a random sequence of colors
 
@@ -908,7 +909,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                 context.scene.collection.objects.link(object_mesh)
 
                 bm = bmesh.new()
-                temp_mesh = generate_mesh_data(mesh_dict, single_mesh, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, use_principled_bsdf=use_principled_bsdf)
+                temp_mesh = generate_mesh_data(mesh_dict, single_mesh, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, use_principled_bsdf, room_scale)
                 bm.from_mesh(temp_mesh)
                 bpy.data.meshes.remove(temp_mesh)
                 bm.to_mesh(single_mesh)
@@ -929,7 +930,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
 
             bm = bmesh.new()
             for mesh_idx, mesh_dict in enumerate(rmesh_dict["meshes"]):
-                temp_mesh = generate_mesh_data(mesh_dict, full_mesh, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, use_principled_bsdf=use_principled_bsdf)
+                temp_mesh = generate_mesh_data(mesh_dict, full_mesh, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, use_principled_bsdf, room_scale)
                 bm.from_mesh(temp_mesh)
                 bpy.data.meshes.remove(temp_mesh)
 
@@ -955,7 +956,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
 
             bm = bmesh.new()
             for render_idx, render_dict in enumerate(rmesh_dict["render_meshes"]):
-                temp_render = generate_mesh_data(render_dict, render_mesh, render_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, use_principled_bsdf=use_principled_bsdf)
+                temp_render = generate_mesh_data(render_dict, render_mesh, render_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, use_principled_bsdf, room_scale)
 
                 bm.from_mesh(temp_render)
                 bpy.data.meshes.remove(temp_render)
@@ -966,7 +967,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
     if has_collision_data and import_collisions:
         collision_collection = get_referenced_collection("collisions", context.scene.collection, True)
         for collision_idx, collision_dict in enumerate(rmesh_dict["collision_meshes"]):
-            collision_mesh = generate_mesh_data(collision_dict, None, collision_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, True, use_principled_bsdf=use_principled_bsdf)
+            collision_mesh = generate_mesh_data(collision_dict, None, collision_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, use_principled_bsdf, room_scale, True)
             collision_ob = bpy.data.objects.new("collision_%s" % collision_idx, collision_mesh)
             collision_ob.cb.object_type = str(ObjectType.collision.value)
             collision_collection.objects.link(collision_ob)
@@ -984,7 +985,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
             for trigger_box_idx, trigger_box_dict in enumerate(rmesh_dict["trigger_boxes"]):
                 for trigger_idx, trigger_dict in enumerate(trigger_box_dict["meshes"]):
                     trigger_name = "trigger_g%st%s" % (trigger_box_idx, trigger_idx)
-                    trigger_mesh = generate_mesh_data(trigger_dict, None, trigger_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, True, use_principled_bsdf=use_principled_bsdf)
+                    trigger_mesh = generate_mesh_data(trigger_dict, None, trigger_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, use_principled_bsdf, room_scale, True)
                     trigger_mesh_object_mesh = bpy.data.objects.new(trigger_name, trigger_mesh)
                     trigger_mesh_object_mesh.cb.object_type = str(ObjectType.trigger_box.value)
                     trigger_mesh_object_mesh.cb.trigger_group = trigger_box_dict["name"]
@@ -1014,7 +1015,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
 
                 entity_collection.objects.link(object_mesh)
 
-                loc = ROOMSCALE * Vector(flip(entity_dict["position"]))
+                loc = room_scale * Vector(flip(entity_dict["position"]))
                 rot = Euler((radians(90), 0, radians(90)))
                 scl = Vector((1, 1, 1))
                 object_mesh.matrix_world = Matrix.LocRotScale(loc, rot, scl)
@@ -1024,7 +1025,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                 object_mesh.cb.object_type = str(ObjectType.entity_screen.value)
                 entity_collection.objects.link(object_mesh)
 
-                loc = ROOMSCALE * Vector(flip(entity_dict["position"]))
+                loc = room_scale * Vector(flip(entity_dict["position"]))
                 rot = get_blender_rot(entity_dict["euler_rotation"])
                 scl = Vector(entity_dict["scale"])
                 object_mesh.matrix_world = Matrix.LocRotScale(loc, rot, scl)
@@ -1039,10 +1040,10 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
 
             elif entity_dict["entity_type"] == "waypoint":
                 object_mesh = bpy.data.objects.new("%s waypoint" % entity_idx, None)
-                object_mesh.empty_display_size = ROOMSCALE * 1
+                object_mesh.empty_display_size = room_scale * 1
                 object_mesh.cb.object_type = str(ObjectType.entity_waypoint.value)
                 entity_collection.objects.link(object_mesh)
-                loc = ROOMSCALE * Vector(flip(entity_dict["position"]))
+                loc = room_scale * Vector(flip(entity_dict["position"]))
                 rot = Quaternion()
                 scl = Vector((1, 1, 1))
                 object_mesh.matrix_world = Matrix.LocRotScale(loc, rot, scl)
@@ -1053,17 +1054,17 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                 object_mesh.cb.object_type = str(ObjectType.entity_light.value)
                 entity_collection.objects.link(object_mesh)
 
-                loc = ROOMSCALE * Vector(flip(entity_dict["position"]))
+                loc = room_scale * Vector(flip(entity_dict["position"]))
                 rot = Quaternion()
                 scl = Vector((1, 1, 1))
                 object_mesh.matrix_world = Matrix.LocRotScale(loc, rot, scl)
                 if use_light_radius:
-                    object_data.shadow_soft_size = ROOMSCALE * entity_dict["range"]
+                    object_data.shadow_soft_size = room_scale * entity_dict["range"]
                     object_data.energy = entity_dict["intensity"]
                     object_data.normalize = False
                 else:
                     object_data.shadow_soft_size = 0
-                    object_data.energy = entity_dict["intensity"] * (ROOMSCALE * entity_dict["range"])
+                    object_data.energy = entity_dict["intensity"] * (room_scale * entity_dict["range"])
                     object_data.normalize = False
 
                 r, g, b = entity_dict["color"].split(" ")
@@ -1086,12 +1087,12 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                 object_mesh.cb.object_type = str(ObjectType.entity_spotlight.value)
                 entity_collection.objects.link(object_mesh)
                 if use_light_radius:
-                    object_data.shadow_soft_size = ROOMSCALE * entity_dict["range"]
+                    object_data.shadow_soft_size = room_scale * entity_dict["range"]
                     object_data.energy = entity_dict["intensity"]
                     object_data.normalize = False
                 else:
                     object_data.shadow_soft_size = 0
-                    object_data.energy = entity_dict["intensity"] * (ROOMSCALE * entity_dict["range"])
+                    object_data.energy = entity_dict["intensity"] * (room_scale * entity_dict["range"])
                     object_data.normalize = False
 
                 r, g, b = entity_dict["color"].split(" ")
@@ -1120,7 +1121,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                     p, y, r = entity_dict["euler_rotation"].split(" ")
                     rotation = [float(p), float(y), float(r)]
 
-                loc = ROOMSCALE * Vector(flip(entity_dict["position"]))
+                loc = room_scale * Vector(flip(entity_dict["position"]))
                 rot = get_blender_rot(rotation, True)
                 scl = Vector((1, 1, 1))
                 object_mesh.matrix_world = Matrix.LocRotScale(loc, rot, scl)
@@ -1131,7 +1132,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                 object_mesh.cb.object_type = str(ObjectType.entity_sound_emitter.value)
                 entity_collection.objects.link(object_mesh)
 
-                loc = ROOMSCALE * Vector(flip(entity_dict["position"]))
+                loc = room_scale * Vector(flip(entity_dict["position"]))
                 rot = Quaternion()
                 scl = Vector((1, 1, 1))
                 object_mesh.matrix_world = Matrix.LocRotScale(loc, rot, scl)
@@ -1141,11 +1142,11 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
 
             elif entity_dict["entity_type"] == "playerstart":
                 object_mesh = bpy.data.objects.new("%s playerstart" % entity_idx, None)
-                object_mesh.empty_display_size = ROOMSCALE * 1
+                object_mesh.empty_display_size = room_scale * 1
                 object_mesh.cb.object_type = str(ObjectType.exclude.value)
                 entity_collection.objects.link(object_mesh)
 
-                loc = ROOMSCALE * Vector(flip(entity_dict["position"]))
+                loc = room_scale * Vector(flip(entity_dict["position"]))
                 rot = get_blender_rot([float(p), float(y), float(r)])
                 scl = Vector((1, 1, 1))
                 object_mesh.matrix_world = Matrix.LocRotScale(loc, rot, scl)
@@ -1176,7 +1177,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
 
                 object_mesh = bpy.data.objects.new("%s %s" % (entity_idx, entity_dict["entity_type"]), ob_data)
                 if ob_data is None:
-                    object_mesh.empty_display_size = ROOMSCALE * 1
+                    object_mesh.empty_display_size = room_scale * 1
 
                 if is_uer_prop:
                     object_mesh.cb.is_uer = True
@@ -1190,7 +1191,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
 
                 entity_collection.objects.link(object_mesh)
                 if not file_type == ImportFileType.rmesh_uer:
-                    loc = ROOMSCALE * Vector(flip(entity_dict["position"]))
+                    loc = room_scale * Vector(flip(entity_dict["position"]))
                     rot = get_blender_rot(entity_dict["euler_rotation"])
                     scl = Vector(entity_dict["scale"])
                     object_mesh.matrix_world = Matrix.LocRotScale(loc, rot, scl)
@@ -1219,7 +1220,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                     if item_entry:
                         model_path = get_file(item_entry, False)
                         ob_data = entity_meshes.get(model_path)
-                        model_scale = (1.0 / ROOMSCALE) * float(items_ini.get(model_name, "scale", fallback=0.01))
+                        model_scale = (1.0 / room_scale) * float(items_ini.get(model_name, "scale", fallback=0.01))
                         if ob_data is None and model_path:
                             ob_data = entity_meshes[model_path] = bpy.data.meshes.new("%s mesh" % entity_idx)
                             bm = bmesh.new()
@@ -1235,12 +1236,12 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
 
                 object_mesh = bpy.data.objects.new("%s item" % entity_idx, ob_data)
                 if ob_data is None:
-                    object_mesh.empty_display_size = ROOMSCALE * 1
+                    object_mesh.empty_display_size = room_scale * 1
 
                 object_mesh.cb.object_type = str(ObjectType.entity_item.value)
                 entity_collection.objects.link(object_mesh)
 
-                loc = ROOMSCALE * Vector(flip(entity_dict["position"]))
+                loc = room_scale * Vector(flip(entity_dict["position"]))
                 rot = get_blender_rot(entity_dict["euler_rotation"])
                 scl = Vector((model_scale, model_scale, model_scale))
                 object_mesh.matrix_world = Matrix.LocRotScale(loc, rot, scl)
@@ -1272,7 +1273,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                 entity_collection.objects.link(button_a_ob)
                 entity_collection.objects.link(button_b_ob)
 
-                loc = ROOMSCALE * Vector(flip(entity_dict["position"]))
+                loc = room_scale * Vector(flip(entity_dict["position"]))
                 rot = Euler((0, 0, radians(entity_dict["angle"])))
                 scl = Vector((1,1,1))
                 door_ob.matrix_world = Matrix.LocRotScale(loc, rot, scl)
@@ -1289,7 +1290,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                     door_ob.cb.locked = bool(entity_dict["locked"])
                     door_ob.cb.delete_half = door_halved
 
-                    loc_result = ROOMSCALE * Vector(flip(entity_dict["button_1_position"]))
+                    loc_result = room_scale * Vector(flip(entity_dict["button_1_position"]))
                     loc_baw, rot_baw, scl_baw = button_a_ob.matrix_world.decompose()
                     if not loc_result.length >= MIN_BUTTON_LENGTH:
                         loc_result = loc_baw
@@ -1298,7 +1299,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                     scl = scl_baw
                     button_a_ob.matrix_world = Matrix.LocRotScale(loc_result, rot, scl)
 
-                    loc_result = ROOMSCALE * Vector(flip(entity_dict["button_2_position"]))
+                    loc_result = room_scale * Vector(flip(entity_dict["button_2_position"]))
                     loc_bbw, rot_bbw, scl_bbw = button_b_ob.matrix_world.decompose()
                     if not loc_result.length >= MIN_BUTTON_LENGTH:
                         loc_result = loc_bbw

@@ -14,8 +14,7 @@ from .common_functions import (RandomColorGenerator,
                                clean_string,
                                generate_texture_mapping,
                                SHADER_RESOURCES,
-                               SHADER_NODE_NAMES,
-                               ROOMSCALE)
+                               SHADER_NODE_NAMES)
 
 def generate_materials(materials_dict, random_color_gen, mesh, is_simple, ob_data, local_asset_path, error_log, material_list=None):
     for material_idx, material_dict in enumerate(materials_dict):
@@ -98,7 +97,7 @@ def generate_materials(materials_dict, random_color_gen, mesh, is_simple, ob_dat
         if material_list is not None:
             material_list.append(material)
 
-def create_object(arm_ob, parent_bone, x_dict, mesh_dict, ob_data=None, is_simple=False, world_transform=None, material_list=[], local_asset_path="", error_log=set(), random_color_gen=None):
+def create_object(arm_ob, parent_bone, x_dict, mesh_dict, room_scale, ob_data=None, is_simple=False, world_transform=None, material_list=[], local_asset_path="", error_log=set(), random_color_gen=None):
     loop_normals = []
     mesh_name = mesh_dict["name"]
     if mesh_name == None:
@@ -107,7 +106,7 @@ def create_object(arm_ob, parent_bone, x_dict, mesh_dict, ob_data=None, is_simpl
         else:
             mesh_name = "mesh"
 
-    vertices = [ROOMSCALE * Vector(flip(vertex)) for vertex in mesh_dict["vertices"]]
+    vertices = [room_scale * Vector(flip(vertex)) for vertex in mesh_dict["vertices"]]
     triangles = [triangle[::-1] for triangle in mesh_dict["faces"]]
     mesh = bpy.data.meshes.new(mesh_name)
     mesh.from_pydata(vertices, [], triangles)
@@ -175,13 +174,13 @@ def create_object(arm_ob, parent_bone, x_dict, mesh_dict, ob_data=None, is_simpl
 
     return entity_mesh
 
-def x_matrix_to_blender(mat):
+def x_matrix_to_blender(mat, room_scale):
     loc, rot, scl = Matrix((mat[0:4], mat[4:8], mat[8:12], mat[12:16])).transposed().decompose()
-    return Matrix.LocRotScale(ROOMSCALE * Vector(flip(loc)), Quaternion(flip(rot)).inverted(), Vector(flip(scl)))
+    return Matrix.LocRotScale(room_scale * Vector(flip(loc)), Quaternion(flip(rot)).inverted(), Vector(flip(scl)))
 
-def blender_matrix_to_x(mat):
+def blender_matrix_to_x(mat, room_scale):
     loc, rot, scl = mat.decompose()
-    b_matrix = Matrix.LocRotScale((1.0 / ROOMSCALE) * Vector(flip(loc)), Quaternion(flip(rot)).inverted(), Vector(flip(scl))).transposed()
+    b_matrix = Matrix.LocRotScale((1.0 / room_scale) * Vector(flip(loc)), Quaternion(flip(rot)).inverted(), Vector(flip(scl))).transposed()
     matrix_array = []
     for row in b_matrix:
         for element in row:
@@ -189,9 +188,9 @@ def blender_matrix_to_x(mat):
 
     return matrix_array
 
-def create_bone(filepath, rigid_obs, arm_ob, x_dict, frame, parent_bone=None, bm=None, ob_data=None, is_simple=False, material_list=[], local_asset_path="", error_log=set(), random_color_gen=None):
+def create_bone(filepath, rigid_obs, arm_ob, x_dict, frame, room_scale, parent_bone=None, bm=None, ob_data=None, is_simple=False, material_list=[], local_asset_path="", error_log=set(), random_color_gen=None):
     name = frame["name"]
-    world_transform = x_matrix_to_blender(frame["transform"])
+    world_transform = x_matrix_to_blender(frame["transform"], room_scale)
 
     bone = None
     bone_name = None
@@ -210,7 +209,7 @@ def create_bone(filepath, rigid_obs, arm_ob, x_dict, frame, parent_bone=None, bm
         bone.matrix = world_transform
 
     for mesh_dict in frame["meshes"]:
-        object_mesh = create_object(arm_ob, bone, x_dict, mesh_dict, ob_data, is_simple, world_transform, material_list, local_asset_path, error_log, random_color_gen)
+        object_mesh = create_object(arm_ob, bone, x_dict, mesh_dict, room_scale, ob_data, is_simple, world_transform, material_list, local_asset_path, error_log, random_color_gen)
         if is_simple:
             bm.from_mesh(object_mesh)
             bpy.data.meshes.remove(object_mesh)
@@ -218,7 +217,7 @@ def create_bone(filepath, rigid_obs, arm_ob, x_dict, frame, parent_bone=None, bm
         rigid_obs.append([object_mesh, bone_name, world_transform])
 
     for child in frame.get("children", []):
-        create_bone(filepath, rigid_obs, arm_ob, x_dict, child, bone, bm, ob_data, is_simple, material_list, local_asset_path, error_log, random_color_gen)
+        create_bone(filepath, rigid_obs, arm_ob, x_dict, child, room_scale, bone, bm, ob_data, is_simple, material_list, local_asset_path, error_log, random_color_gen)
 
 def get_linked_node(node, input_name, search_type):
     linked_node = None
@@ -231,7 +230,7 @@ def get_linked_node(node, input_name, search_type):
 
     return linked_node
 
-def get_skeleton_tree(active_ob, frame_dict, bone_transforms, rigid_ob_dict, depsgraph, parent_bone=None):
+def get_skeleton_tree(active_ob, frame_dict, bone_transforms, rigid_ob_dict, depsgraph, room_scale, parent_bone=None):
     for bone in active_ob.pose.bones:
         if bone.parent == parent_bone:
             bone_dict = {
@@ -244,14 +243,14 @@ def get_skeleton_tree(active_ob, frame_dict, bone_transforms, rigid_ob_dict, dep
             rigid_obs = rigid_ob_dict.get(bone.name)
             if rigid_obs is not None:
                 for rigid_ob in rigid_obs:
-                    process_mesh(bone_dict["meshes"], bone_transforms, active_ob, rigid_ob, depsgraph, bone)
+                    process_mesh(bone_dict["meshes"], bone_transforms, active_ob, rigid_ob, depsgraph, room_scale, bone)
 
-            bone_dict["transform"] = blender_matrix_to_x(bone_transforms.get(bone.name))
-            get_skeleton_tree(active_ob, bone_dict["children"], bone_transforms, rigid_ob_dict, depsgraph, bone)
+            bone_dict["transform"] = blender_matrix_to_x(bone_transforms.get(bone.name), room_scale)
+            get_skeleton_tree(active_ob, bone_dict["children"], bone_transforms, rigid_ob_dict, depsgraph, room_scale, bone)
 
             frame_dict.append(bone_dict)
 
-def process_mesh(ob_dict, bone_transforms, armature, ob, depsgraph, bone=None):
+def process_mesh(ob_dict, bone_transforms, armature, ob, depsgraph, room_scale, bone=None):
     ob_eval = ob.evaluated_get(depsgraph)
     mesh = ob_eval.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
     mesh.calc_loop_triangles()
@@ -299,7 +298,7 @@ def process_mesh(ob_dict, bone_transforms, armature, ob, depsgraph, bone=None):
             v = mesh.vertices[loop.vertex_index]
             loop_normal = flip(loop.normal)
 
-            pos = (1.0 / ROOMSCALE) * Vector(flip(v.co))
+            pos = (1.0 / room_scale) * Vector(flip(v.co))
 
             uv = (0.0, 0.0)
             if uv_layer:
@@ -403,6 +402,7 @@ def process_mesh(ob_dict, bone_transforms, armature, ob, depsgraph, bone=None):
     ob_dict.append(mesh_dict)
 
 def export_scene(context, output_path, report):
+    room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
     if context.view_layer.objects.active is not None:
         bpy.ops.object.mode_set(mode='OBJECT')
 
@@ -452,11 +452,11 @@ def export_scene(context, output_path, report):
             bone_transforms[bone.name] = armature_ob.matrix_world @ bone.matrix_local
 
         bpy.ops.object.mode_set(mode = 'POSE')
-        get_skeleton_tree(armature_ob, x_dict["frames"], bone_transforms, rigid_ob_dict, depsgraph, None)
+        get_skeleton_tree(armature_ob, x_dict["frames"], bone_transforms, rigid_ob_dict, depsgraph, room_scale, None)
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
         for skinned_ob in skinned_ob_list:
-            process_mesh(x_dict["meshes"], bone_transforms, armature_ob, skinned_ob, depsgraph)
+            process_mesh(x_dict["meshes"], bone_transforms, armature_ob, skinned_ob, depsgraph, room_scale)
 
         write_x(x_dict, output_path)
         armature_ob.data.pose_position = 'POSE'
@@ -478,6 +478,7 @@ def import_scene(context, filepath, report, bm=None, ob_data=None, is_simple=Fal
             random_color_gen = RandomColorGenerator() # generates a random sequence of colors
 
         game_path = Path(bpy.context.preferences.addons["io_scene_cb"].preferences.game_path)
+        room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
 
         local_asset_path = ""
         if not is_string_empty(str(game_path)) and str(filepath).startswith(str(game_path)):
@@ -497,7 +498,7 @@ def import_scene(context, filepath, report, bm=None, ob_data=None, is_simple=Fal
 
         rigid_obs = []
         for bone in x_dict["frames"]:
-            create_bone(filepath, rigid_obs, arm_ob, x_dict, bone, None, bm, ob_data, is_simple, material_list, local_asset_path, error_log, random_color_gen)
+            create_bone(filepath, rigid_obs, arm_ob, x_dict, bone, room_scale, None, bm, ob_data, is_simple, material_list, local_asset_path, error_log, random_color_gen)
 
         if not is_simple:
             bpy.ops.object.mode_set(mode='OBJECT')
@@ -510,7 +511,7 @@ def import_scene(context, filepath, report, bm=None, ob_data=None, is_simple=Fal
 
         if not x_dict["xof_header"] == "xof 0302txt 0064":
             for mesh_dict in x_dict["meshes"]:
-                object_mesh = create_object(arm_ob, None, x_dict, mesh_dict, ob_data, is_simple, None, material_list, local_asset_path, error_log, random_color_gen)
+                object_mesh = create_object(arm_ob, None, x_dict, mesh_dict, room_scale, ob_data, is_simple, None, material_list, local_asset_path, error_log, random_color_gen)
                 if is_simple:
                     bm.from_mesh(object_mesh)
                     bpy.data.meshes.remove(object_mesh)
