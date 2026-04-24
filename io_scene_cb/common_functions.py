@@ -216,7 +216,11 @@ def flip(v):
     return ((v[0],v[2],v[1]) if len(v)<4 else (v[0], v[1],v[3],v[2]))
 
 def clean_string(text):
-    return re.sub(r'[^A-Za-z0-9]', '', text)
+    cleaned = re.sub(r'[^A-Za-z0-9_]', '', text)
+    if cleaned and cleaned[0].isdigit():
+        cleaned = '_' + cleaned
+
+    return cleaned
 
 def read_string(input_stream, encoding="utf-8"):
     return input_stream.read(read_integer(input_stream)).decode(encoding)

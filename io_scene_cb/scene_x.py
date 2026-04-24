@@ -234,7 +234,7 @@ def get_skeleton_tree(active_ob, frame_dict, bone_transforms, rigid_ob_dict, dep
     for bone in active_ob.pose.bones:
         if bone.parent == parent_bone:
             bone_dict = {
-                "name": bone.name,
+                "name": clean_string(bone.name),
                 "transform": [],
                 "meshes": [],
                 "children": []
@@ -266,7 +266,7 @@ def process_mesh(ob_dict, bone_transforms, armature, ob, depsgraph, room_scale, 
         uv_layer = mesh.uv_layers[0]
 
     mesh_dict = {
-        "name": ob.name,
+        "name": clean_string(ob.name),
         "vertices": [],
         "faces": [],
         "normals": [],
@@ -350,7 +350,7 @@ def process_mesh(ob_dict, bone_transforms, armature, ob, depsgraph, room_scale, 
         bone_dict["bone"] = bone_name
         bone_dict["indices"] = [idx for idx in range(vert_count)]
         bone_dict["weights"] = [1.0 for idx in range(vert_count)]
-        bone_dict["transform"] = blender_matrix_to_x(bone_transforms.get(bone_name))
+        bone_dict["transform"] = blender_matrix_to_x(bone_transforms.get(bone_name), room_scale)
         mesh_dict["skin_weights"].append(bone_dict)
 
     mesh_dict["group_count"] = len(mesh_dict["skin_weights"])
