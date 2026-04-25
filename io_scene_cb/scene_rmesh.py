@@ -431,8 +431,6 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
         rmesh_file_type = "RM"
 
     file_extension = ".rmesh"
-    if file_type == ExportFileType.rmesh_salvage:
-        file_extension = ".rm" 
 
     filepath = filepath.parent / f"{filepath.stem}{file_extension}"
 
