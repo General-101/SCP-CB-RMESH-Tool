@@ -1275,7 +1275,7 @@ def export_scene(context, filepath, report):
             armature_ob.data.pose_position = 'REST'
             depsgraph.update()
 
-            skin_info, mesh_dict = get_mesh(b3d_data, node_ob, depsgraph, armature_ob)
+            skin_info, mesh_dict = get_mesh(b3d_data, node_ob, depsgraph, room_scale, armature_ob)
 
             armature_ob.data.pose_position = 'POSE'
             depsgraph.update()
