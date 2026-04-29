@@ -49,7 +49,7 @@ class SCPCBAddonPrefs(bpy.types.AddonPreferences):
 
     room_scale: FloatProperty(
         name = "Room Scale",
-        description = "Set scale for model data",
+        description = "Set scale for model data during import and export. 0.00390625 is the ingame scale while 0.00625 is what the addon uses",
         default=0.00625,
         )
 
