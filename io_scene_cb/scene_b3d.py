@@ -10,6 +10,7 @@ from math import radians, degrees, floor
 from .process_b3d import B3DTree, write_b3d
 from mathutils import Matrix, Vector, Quaternion
 from .common_functions import (RandomColorGenerator,
+                               MaterialType,
                                get_file,
                                is_string_empty,
                                get_material_name,
@@ -1343,6 +1344,7 @@ def find_bones(node, bone_check_list, uv_counts):
 def import_scene(context, filepath, fullbright_materials, use_light_radius, report, bm=None, ob_data=None, is_simple=False, error_log=None, random_color_gen=None):
     game_path = Path(bpy.context.preferences.addons[__package__].preferences.game_path)
     room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
+    material_type_enum = MaterialType(int(bpy.context.preferences.addons[__package__].preferences.material_type))
 
     local_asset_path = ""
     if not is_string_empty(str(game_path)) and str(filepath).startswith(str(game_path)):
@@ -1380,25 +1382,41 @@ def import_scene(context, filepath, fullbright_materials, use_light_radius, repo
             output_material_node = get_output_material_node(material)
             output_material_node.location = Vector((0.0, 0.0))
 
-            b3d_node = get_shader_node(material.node_tree, SHADER_RESOURCES, "cb_material")
-            b3d_node.name = "B3D Material"
-            b3d_node.location = (-440.0, 0.0)
-            set_material_properties(b3d_node, material_dict)
+            if material_type_enum == MaterialType.simple:
+                bsdf_node = material.node_tree.nodes.new("ShaderNodeBsdfPrincipled")
+                bsdf_node.name = "Principled BSDF"
+                bsdf_node.location = (-440.0, 0.0)
+                connect_inputs(material.node_tree, bsdf_node, "BSDF", output_material_node, "Surface")
 
-            connect_inputs(material.node_tree, b3d_node, "Shader", output_material_node, "Surface")
+                shader_input_node = bsdf_node
+                shader_color_input = "Base Color"
+                shader_alpha_input = "Alpha"
+                shader_emission_input = "Emission Color"
 
-            if fullbright_materials:
-                b3d_node.inputs["Is Fullbright"].default_value = True
+            else:
+                b3d_node = get_shader_node(material.node_tree, SHADER_RESOURCES, "cb_material")
+                b3d_node.name = "B3D Material"
+                b3d_node.location = (-440.0, 0.0)
+                set_material_properties(b3d_node, material_dict)
 
-            mat_flags = MaterialFXFlags(material_dict["fx"])
-            if MaterialFXFlags.use_vertex_color_alpha_as_transparency in mat_flags:
-                attr_node = material.node_tree.nodes.new("ShaderNodeVertexColor")
-                attr_node.location = (-720.0, 0)
+                connect_inputs(material.node_tree, b3d_node, "Shader", output_material_node, "Surface")
 
-                connect_inputs(material.node_tree, attr_node, "Color", b3d_node, "Diffuse Map Alpha")
-                material.surface_render_method = 'BLENDED'
-                attr_node.layer_name = "alpha"
+                if fullbright_materials:
+                    b3d_node.inputs["Is Fullbright"].default_value = True
 
+                mat_flags = MaterialFXFlags(material_dict["fx"])
+                if MaterialFXFlags.use_vertex_color_alpha_as_transparency in mat_flags:
+                    attr_node = material.node_tree.nodes.new("ShaderNodeVertexColor")
+                    attr_node.location = (-720.0, 0)
+
+                    connect_inputs(material.node_tree, attr_node, "Color", b3d_node, "Diffuse Map Alpha")
+                    material.surface_render_method = 'BLENDED'
+                    attr_node.layer_name = "alpha"
+
+                shader_input_node = b3d_node
+                shader_color_input = "Diffuse Map"
+                shader_alpha_input = "Diffuse Map Alpha"
+                shader_emission_input = "Emission Map"
 
             valid_texture_id_count = 0
             for tid_element in material_dict["tids"]:
@@ -1428,7 +1446,8 @@ def import_scene(context, filepath, fullbright_materials, use_light_radius, repo
 
                         if texture_type == TextureTypeEnum.lightmap:
                             texture_node.location = (-720.0, 0)
-                            connect_inputs(material.node_tree, texture_node, "Color", b3d_node, "Light Map")
+                            if not material_type_enum == MaterialType.simple:
+                                connect_inputs(material.node_tree, texture_node, "Color", shader_input_node, "Light Map")
 
                             mapping_node, uv_node = generate_texture_mapping(material.node_tree, texture_node)
                             uv_node.uv_map = "uvmap_lightmap"
@@ -1444,9 +1463,9 @@ def import_scene(context, filepath, fullbright_materials, use_light_radius, repo
 
                         elif texture_type == TextureTypeEnum.diffuse:
                             texture_node.location = (-720.0, -380)
-                            connect_inputs(material.node_tree, texture_node, "Color", b3d_node, "Diffuse Map")
+                            connect_inputs(material.node_tree, texture_node, "Color", shader_input_node, shader_color_input)
                             if mat_blend == MaterialBlendEnum.alpha:
-                                connect_inputs(material.node_tree, texture_node, "Alpha", b3d_node, "Diffuse Map Alpha")
+                                connect_inputs(material.node_tree, texture_node, "Alpha", shader_input_node, shader_alpha_input)
 
                             mapping_node, uv_node = generate_texture_mapping(material.node_tree, texture_node)
                             uv_node.uv_map = "uvmap_render"
@@ -1469,7 +1488,15 @@ def import_scene(context, filepath, fullbright_materials, use_light_radius, repo
                                 texture_bump.interpolation = 'Cubic'
                                 texture_bump.image.colorspace_settings.name = 'Non-Color'
                                 texture_bump.location = (-720.0, -760)
-                                connect_inputs(material.node_tree, texture_bump, "Color", b3d_node, "Normal Map")
+
+                                if material_type_enum == MaterialType.simple:
+                                    normal_map_node = material.node_tree.nodes.new("ShaderNodeNormalMap")
+                                    normal_map_node.location = (-720.0, -640.0)
+                                    connect_inputs(material.node_tree, texture_bump, "Color", normal_map_node, "Color")
+                                    connect_inputs(material.node_tree, normal_map_node, "Normal", shader_input_node, "Normal")
+
+                                else:
+                                    connect_inputs(material.node_tree, texture_bump, "Color", shader_input_node, "Normal Map")
 
                                 mapping_node, uv_node = generate_texture_mapping(material.node_tree, texture_bump)
                                 uv_node.uv_map = "uvmap_render"
@@ -1487,7 +1514,7 @@ def import_scene(context, filepath, fullbright_materials, use_light_radius, repo
                                 texture_glow.image = texture_glow_data
                                 texture_glow.image.alpha_mode = 'CHANNEL_PACKED'
                                 texture_glow.location = (-720.0, -1140)
-                                connect_inputs(material.node_tree, texture_glow, "Color", b3d_node, "Emission Map")
+                                connect_inputs(material.node_tree, texture_glow, "Color", shader_input_node, shader_emission_input)
 
                                 mapping_node, uv_node = generate_texture_mapping(material.node_tree, texture_glow)
                                 uv_node.uv_map = "uvmap_render"

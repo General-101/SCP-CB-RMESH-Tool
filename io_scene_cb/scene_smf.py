@@ -5,10 +5,9 @@ from pathlib import Path
 from .process_smf import read_smf
 from mathutils import Matrix, Vector, Quaternion, Euler
 from .common_functions import (RandomColorGenerator,
+                               MaterialType,
                                get_file,
                                is_string_empty,
-                               get_material_name,
-                               get_linked_node,
                                get_output_material_node,
                                flip,
                                get_shader_node,
@@ -16,7 +15,7 @@ from .common_functions import (RandomColorGenerator,
                                generate_texture_mapping,
                                SHADER_RESOURCES)
 
-def import_mesh(data, node, random_color_gen, local_asset_path, room_scale):
+def import_mesh(data, node, random_color_gen, local_asset_path, room_scale, material_type_enum):
     vertices = [room_scale * Vector(flip(vertex)) for vertex in node["vertices"]]
     mesh = bpy.data.meshes.new("mesh")
     mesh.from_pydata(vertices, [], node["faces"])
@@ -35,18 +34,33 @@ def import_mesh(data, node, random_color_gen, local_asset_path, room_scale):
     output_material_node = get_output_material_node(material)
     output_material_node.location = Vector((0.0, 0.0))
 
-    smf_node = get_shader_node(material.node_tree, SHADER_RESOURCES, "cb_material")
-    smf_node.name = "smf Material"
-    smf_node.location = (-440.0, 0.0)
+    if material_type_enum == MaterialType.simple:
+        bsdf_node = material.node_tree.nodes.new("ShaderNodeBsdfPrincipled")
+        bsdf_node.name = "Principled BSDF"
+        bsdf_node.location = (-440.0, 0.0)
+        connect_inputs(material.node_tree, bsdf_node, "BSDF", output_material_node, "Surface")
 
-    connect_inputs(material.node_tree, smf_node, "Shader", output_material_node, "Surface")
+        shader_input_node = bsdf_node
+        shader_color_input = "Base Color"
+        shader_emission_input = "Emission Color"
+
+    else:
+        smf_node = get_shader_node(material.node_tree, SHADER_RESOURCES, "cb_material")
+        smf_node.name = "smf Material"
+        smf_node.location = (-440.0, 0.0)
+        connect_inputs(material.node_tree, smf_node, "Shader", output_material_node, "Surface")
+
+        shader_input_node = smf_node
+        shader_color_input = "Diffuse Map"
+        shader_emission_input = "Emission Map"
+
     texture_asset = get_file(os.path.basename(node['texture_name']), True, True, directory_path=local_asset_path)
     if texture_asset:
         texture_node = material.node_tree.nodes.new('ShaderNodeTexImage')
         texture_node.image = texture_asset
 
         texture_node.location = (-720.0, -380)
-        connect_inputs(material.node_tree, texture_node, "Color", smf_node, "Diffuse Map")
+        connect_inputs(material.node_tree, texture_node, "Color", shader_input_node, shader_color_input)
 
         mapping_node, uv_node = generate_texture_mapping(material.node_tree, texture_node)
         uv_node.uv_map = "uvmap_render"
@@ -62,7 +76,15 @@ def import_mesh(data, node, random_color_gen, local_asset_path, room_scale):
             texture_bump.interpolation = 'Cubic'
             texture_bump.image.colorspace_settings.name = 'Non-Color'
             texture_bump.location = (-720.0, -760)
-            connect_inputs(material.node_tree, texture_bump, "Color", smf_node, "Normal Map")
+
+            if material_type_enum == MaterialType.simple:
+                normal_map_node = material.node_tree.nodes.new("ShaderNodeNormalMap")
+                normal_map_node.location = (-720.0, -760)
+                connect_inputs(material.node_tree, texture_bump, "Color", normal_map_node, "Color")
+                connect_inputs(material.node_tree, normal_map_node, "Normal", shader_input_node, "Normal")
+
+            else:
+                connect_inputs(material.node_tree, texture_bump, "Color", shader_input_node, "Normal Map")
 
             mapping_node, uv_node = generate_texture_mapping(material.node_tree, texture_bump)
             uv_node.uv_map = "uvmap_render"
@@ -73,7 +95,7 @@ def import_mesh(data, node, random_color_gen, local_asset_path, room_scale):
             texture_glow.image = texture_glow_data
             texture_glow.image.alpha_mode = 'CHANNEL_PACKED'
             texture_glow.location = (-720.0, -1140)
-            connect_inputs(material.node_tree, texture_glow, "Color", smf_node, "Emission Map")
+            connect_inputs(material.node_tree, texture_glow, "Color", shader_input_node, shader_emission_input)
 
             mapping_node, uv_node = generate_texture_mapping(material.node_tree, texture_glow)
             uv_node.uv_map = "uvmap_render"
@@ -94,12 +116,12 @@ def import_mesh(data, node, random_color_gen, local_asset_path, room_scale):
 
     return mesh
 
-def import_node_recursive(context, data, node, random_color_gen, local_asset_path, room_scale, parent_ob=None):
+def import_node_recursive(context, data, node, random_color_gen, local_asset_path, room_scale, material_type_enum, parent_ob=None):
     ob_index = data.get("ob_index")
     if ob_index is None:
         data["ob_index"] = 0
 
-    mesh_data = import_mesh(data, node, random_color_gen, local_asset_path, room_scale)
+    mesh_data = import_mesh(data, node, random_color_gen, local_asset_path, room_scale, material_type_enum)
     ob_data = bpy.data.objects.new("node_%s" % data["ob_index"], mesh_data)
     context.collection.objects.link(ob_data)
 
@@ -111,11 +133,12 @@ def import_node_recursive(context, data, node, random_color_gen, local_asset_pat
     node_transform = Matrix.LocRotScale(room_scale * Vector(flip(node["position"])), Euler(node["rotation"]), Vector(flip(node["scale"])))
     ob_data.matrix_local = node_transform
     for child_node in node["nodes"]:
-        import_node_recursive(context, data, child_node, random_color_gen, local_asset_path, room_scale, ob_data)
+        import_node_recursive(context, data, child_node, random_color_gen, local_asset_path, room_scale, material_type_enum, ob_data)
 
 def import_scene(context, filepath, report):
     game_path = Path(bpy.context.preferences.addons[__package__].preferences.game_path)
     room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
+    material_type_enum = MaterialType(int(bpy.context.preferences.addons[__package__].preferences.material_type))
 
     local_asset_path = ""
     if not is_string_empty(str(game_path)) and str(filepath).startswith(str(game_path)):
@@ -127,7 +150,7 @@ def import_scene(context, filepath, report):
     random_color_gen = RandomColorGenerator() # generates a random sequence of colors
 
     for child_node in data["nodes"]:
-        import_node_recursive(context, data, child_node, random_color_gen, local_asset_path, room_scale)
+        import_node_recursive(context, data, child_node, random_color_gen, local_asset_path, room_scale, material_type_enum)
 
     report({'INFO'}, "Import completed successfully")
     return {'FINISHED'}

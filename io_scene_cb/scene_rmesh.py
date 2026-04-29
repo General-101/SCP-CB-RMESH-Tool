@@ -13,6 +13,7 @@ from .object_helper import create_door, DoorType, ButtonType, DoorState
 from .process_rmesh import TextureType, write_rmesh, read_rmesh, ImportFileType, ExportFileType
 from .common_functions import (RandomColorGenerator,
                                ObjectType,
+                               MaterialType,
                                get_referenced_collection,
                                get_file,
                                is_string_empty,
@@ -671,6 +672,7 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
             entity_dict["entity_type"] = "door"
             entity_dict["position"] = tuple((1.0 / room_scale) * Vector(flip(loc)))
             entity_dict["door_type"] = door_type.value
+            entity_dict["door_identifier"] = ob.cb.door_identifier
             entity_dict["key_card_level"] = ob.cb.key_card_level
             entity_dict["keypad_code"] = ob.cb.keypad_code
             entity_dict["angle"] = degrees(z)
@@ -690,7 +692,7 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
     report({'INFO'}, "Export completed successfully")
     return {'FINISHED'}
 
-def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, use_principled_bsdf, room_scale, is_collision=False):
+def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, is_collision=False):
     mesh_name = "temp_mesh"
     if mesh_data is None:
         mesh_name = "mesh"
@@ -714,13 +716,17 @@ def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_
         output_material_node = get_output_material_node(mat)
         output_material_node.location = Vector((0.0, 0.0))
 
-        if use_principled_bsdf:
+        if material_type_enum == MaterialType.simple:
             bsdf_node = mat.node_tree.nodes.new("ShaderNodeBsdfPrincipled")
             bsdf_node.name = "Principled BSDF"
             bsdf_node.location = (-440.0, 0.0)
             connect_inputs(mat.node_tree, bsdf_node, "BSDF", output_material_node, "Surface")
+            
             shader_input_node = bsdf_node
             shader_color_input = "Base Color"
+            shader_alpha_input = "Alpha"
+            shader_emission_input = "Emission Color"
+
         else:
             rmesh_node = get_shader_node(mat.node_tree, SHADER_RESOURCES, "cb_material")
             rmesh_node.name = "RMESH Material"
@@ -728,8 +734,11 @@ def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_
             connect_inputs(mat.node_tree, rmesh_node, "Shader", output_material_node, "Surface")
             if fullbright_materials:
                 rmesh_node.inputs["Is Fullbright"].default_value = True
+
             shader_input_node = rmesh_node
             shader_color_input = "Diffuse Map"
+            shader_alpha_input = "Diffuse Map Alpha"
+            shader_emission_input = "Emission Map"
 
         texture_lightmap = None
         diffuse_type = TextureType.none
@@ -752,11 +761,12 @@ def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_
                     texture_lightmap.image.alpha_mode = 'CHANNEL_PACKED'
                     texture_lightmap.location = (-720.0, -320.0)
 
-                    if not use_principled_bsdf:
+                    if not material_type_enum == MaterialType.simple:
                         connect_inputs(mat.node_tree, texture_lightmap, "Color", shader_input_node, "Light Map")
-                        mapping_node, uv_node = generate_texture_mapping(mat.node_tree, texture_lightmap)
-                        uv_node.uv_map = "uvmap_lightmap"
-                        mapping_node.vector_type = 'TEXTURE'
+
+                    mapping_node, uv_node = generate_texture_mapping(mat.node_tree, texture_lightmap)
+                    uv_node.uv_map = "uvmap_lightmap"
+                    mapping_node.vector_type = 'TEXTURE'
 
                 elif len(texture_dict["texture_name"]) > 0:
                     error_log.add('Failed to retrive "%s"' % texture_dict["texture_name"])
@@ -779,7 +789,7 @@ def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_
 
                     connect_inputs(mat.node_tree, texture_diffuse, "Color", shader_input_node, shader_color_input)
                     if diffuse_type == TextureType.transparent:
-                        connect_inputs(mat.node_tree, texture_diffuse, "Alpha", shader_input_node, "Diffuse Map Alpha")
+                        connect_inputs(mat.node_tree, texture_diffuse, "Alpha", shader_input_node, shader_alpha_input)
 
                     mapping_node, uv_node = generate_texture_mapping(mat.node_tree, texture_diffuse)
                     uv_node.uv_map = "uvmap_render"
@@ -796,7 +806,13 @@ def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_
                         texture_bump.image.colorspace_settings.name = 'Non-Color'
                         texture_bump.location = (-720.0, -640.0)
 
-                        if not use_principled_bsdf:
+                        if material_type_enum == MaterialType.simple:
+                            normal_map_node = mat.node_tree.nodes.new("ShaderNodeNormalMap")
+                            normal_map_node.location = (-720.0, -640.0)
+                            connect_inputs(mat.node_tree, texture_bump, "Color", normal_map_node, "Color")
+                            connect_inputs(mat.node_tree, normal_map_node, "Normal", shader_input_node, "Normal")
+
+                        else:
                             connect_inputs(mat.node_tree, texture_bump, "Color", shader_input_node, "Normal Map")
 
                         mapping_node, uv_node = generate_texture_mapping(mat.node_tree, texture_bump)
@@ -809,8 +825,7 @@ def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_
                         texture_glow.image.alpha_mode = 'CHANNEL_PACKED'
                         texture_glow.location = (-720.0, -1140)
 
-                        if not use_principled_bsdf:
-                            connect_inputs(mat.node_tree, texture_glow, "Color", shader_input_node, "Emission Map")
+                        connect_inputs(mat.node_tree, texture_glow, "Color", shader_input_node, shader_emission_input)
 
                         mapping_node, uv_node = generate_texture_mapping(mat.node_tree, texture_glow)
                         uv_node.uv_map = "uvmap_render"
@@ -854,11 +869,12 @@ def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_
     return mesh
 
 def import_scene(context, filepath, file_type, fullbright_materials, use_light_radius, split_by_material, import_meshes, import_collisions, import_trigger_boxes, 
-                 import_entities, use_principled_bsdf, report):
+                 import_entities, report):
     file_type, rmesh_dict = read_rmesh(filepath, ImportFileType(int(file_type)))
 
     game_path = Path(bpy.context.preferences.addons[__package__].preferences.game_path)
     room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
+    material_type_enum = MaterialType(int(bpy.context.preferences.addons[__package__].preferences.material_type))
 
     random_color_gen = RandomColorGenerator() # generates a random sequence of colors
 
@@ -907,7 +923,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                 context.scene.collection.objects.link(object_mesh)
 
                 bm = bmesh.new()
-                temp_mesh = generate_mesh_data(mesh_dict, single_mesh, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, use_principled_bsdf, room_scale)
+                temp_mesh = generate_mesh_data(mesh_dict, single_mesh, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale)
                 bm.from_mesh(temp_mesh)
                 bpy.data.meshes.remove(temp_mesh)
                 bm.to_mesh(single_mesh)
@@ -928,7 +944,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
 
             bm = bmesh.new()
             for mesh_idx, mesh_dict in enumerate(rmesh_dict["meshes"]):
-                temp_mesh = generate_mesh_data(mesh_dict, full_mesh, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, use_principled_bsdf, room_scale)
+                temp_mesh = generate_mesh_data(mesh_dict, full_mesh, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale)
                 bm.from_mesh(temp_mesh)
                 bpy.data.meshes.remove(temp_mesh)
 
@@ -954,7 +970,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
 
             bm = bmesh.new()
             for render_idx, render_dict in enumerate(rmesh_dict["render_meshes"]):
-                temp_render = generate_mesh_data(render_dict, render_mesh, render_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, use_principled_bsdf, room_scale)
+                temp_render = generate_mesh_data(render_dict, render_mesh, render_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale)
 
                 bm.from_mesh(temp_render)
                 bpy.data.meshes.remove(temp_render)
@@ -965,7 +981,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
     if has_collision_data and import_collisions:
         collision_collection = get_referenced_collection("collisions", context.scene.collection, True)
         for collision_idx, collision_dict in enumerate(rmesh_dict["collision_meshes"]):
-            collision_mesh = generate_mesh_data(collision_dict, None, collision_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, use_principled_bsdf, room_scale, True)
+            collision_mesh = generate_mesh_data(collision_dict, None, collision_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, True)
             collision_ob = bpy.data.objects.new("collision_%s" % collision_idx, collision_mesh)
             collision_ob.cb.object_type = str(ObjectType.collision.value)
             collision_collection.objects.link(collision_ob)
@@ -983,7 +999,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
             for trigger_box_idx, trigger_box_dict in enumerate(rmesh_dict["trigger_boxes"]):
                 for trigger_idx, trigger_dict in enumerate(trigger_box_dict["meshes"]):
                     trigger_name = "trigger_g%st%s" % (trigger_box_idx, trigger_idx)
-                    trigger_mesh = generate_mesh_data(trigger_dict, None, trigger_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, use_principled_bsdf, room_scale, True)
+                    trigger_mesh = generate_mesh_data(trigger_dict, None, trigger_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, True)
                     trigger_mesh_object_mesh = bpy.data.objects.new(trigger_name, trigger_mesh)
                     trigger_mesh_object_mesh.cb.object_type = str(ObjectType.trigger_box.value)
                     trigger_mesh_object_mesh.cb.trigger_group = trigger_box_dict["name"]
@@ -1277,6 +1293,9 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                 door_ob.matrix_world = Matrix.LocRotScale(loc, rot, scl)
 
                 door_ob.cb.door_type = str(entity_dict["door_type"])
+                if file_type == ImportFileType.rmesh_salvage and rmesh_dict["rmesh_version"] >= 1:
+                    door_ob.cb.door_identifier = entity_dict["door_identifier"]
+
                 door_ob.cb.key_card_level = entity_dict["key_card_level"]
                 door_ob.cb.keypad_code = entity_dict["keypad_code"]
                 door_ob.cb.start_open = bool(entity_dict["start_open"])

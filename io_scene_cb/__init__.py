@@ -53,6 +53,14 @@ class SCPCBAddonPrefs(bpy.types.AddonPreferences):
         default=0.00625,
         )
 
+    material_type: EnumProperty(
+        name="Type",
+        description="Set the classification for the CB object",
+        items = ( ('0', "Full Materials", "Uses the CB material shader node group during imports. Allows full control over the material properties for objects in the Blitz3D engine"),
+                    ('1', "Simple Materials", "Materials will only use a BDSF node. Use this if you're planning on exporting the assets to something like FBX"),
+                )
+        )
+
     def draw(self, context):
         layout = self.layout
 
@@ -65,6 +73,9 @@ class SCPCBAddonPrefs(bpy.types.AddonPreferences):
         row = col.row()
         row.label(text='Room Scale:')
         row.prop(self, "room_scale", text='')
+        row = col.row()
+        row.label(text='Material Type:')
+        row.prop(self, "material_type", text='')
 
 class CBObjectPropertiesGroup(PropertyGroup):
     object_type: EnumProperty(
@@ -251,6 +262,14 @@ class CBObjectPropertiesGroup(PropertyGroup):
     linear_falloff: FloatProperty(
         name = "Linear Falloff",
         description = "???"
+        )
+
+    door_identifier: IntProperty(
+        name = "Door Identifier",
+        description = "The index this door is placed at in the room's RoomDoors array. Has no effect besides making this door accessible to scripts. Negative values do not assign the door to any index. The maximum is 8",
+        min=-1,
+        max=8,
+        default=-1
         )
 
 class CB_OT_ConnectLightmaps(Operator):
@@ -514,6 +533,9 @@ def render_entity_door(context, layout, active_property):
     row.label(text='Door Type:')
     row.prop(active_property, "door_type", text='')
     row = col.row()
+    row.label(text='Door Identifier:')
+    row.prop(active_property, "door_identifier", text='')
+    row = col.row()
     row.label(text='Key Card Level:')
     row.prop(active_property, "key_card_level", text='')
     row = col.row()
@@ -696,12 +718,6 @@ class ImportRMESH(Operator, ImportHelper):
         default = False,
         )
 
-    use_principled_bsdf: BoolProperty(
-        name="Use Principled BSDF",
-        description="Use a standard Principled BSDF shader instead of the custom shader",
-        default=False,
-    )
-
     use_light_radius: BoolProperty(
         name ="Use Light Radius",
         description = "Uses the range from the light entity for the radius entry directly. Is set to 0 otherwise. Disabling this seems more accurate but you lose soft shadows. Disabling it will also mean reimports can't rebuilt the light settings correctly",
@@ -738,13 +754,12 @@ class ImportRMESH(Operator, ImportHelper):
         box = layout.box()
         box.label(text="Materials", icon='MATERIAL')
         box.prop(self, "fullbright_materials")
-        box.prop(self, "use_principled_bsdf")
 
     def execute(self, context):
         from . import scene_rmesh
 
         return scene_rmesh.import_scene(context, Path(self.filepath), self.file_type, self.fullbright_materials, self.use_light_radius, self.split_by_material, 
-                                        self.import_meshes, self.import_collisions, self.import_trigger_boxes, self.import_entities, self.use_principled_bsdf, self.report)
+                                        self.import_meshes, self.import_collisions, self.import_trigger_boxes, self.import_entities, self.report)
 
     if (4, 1, 0) <= bpy.app.version:
         def invoke(self, context, event):

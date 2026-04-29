@@ -26,6 +26,10 @@ class ObjectType(Enum):
     entity_item = auto()
     entity_door = auto()
 
+class MaterialType(Enum):
+    full = 0
+    simple = auto()
+
 def lim32(n):
     """Simulate a 32 bit unsigned interger overflow"""
     return n & 0xFFFFFFFF

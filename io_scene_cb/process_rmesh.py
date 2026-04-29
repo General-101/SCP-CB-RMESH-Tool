@@ -258,6 +258,9 @@ def read_rmesh(file_path, file_type):
                 if file_type == ImportFileType.rmesh_salvage:
                     entity_dict["position"] = read_vector(rmesh_stream)
                     entity_dict["door_type"] = read_integer(rmesh_stream)
+                    if rmesh_dict["rmesh_version"] >= 1:
+                        entity_dict["door_identifier"] = read_integer(rmesh_stream)
+
                     entity_dict["key_card_level"] = read_integer(rmesh_stream)
                     entity_dict["keypad_code"] = read_string(rmesh_stream)
                     entity_dict["angle"] = read_float(rmesh_stream)
@@ -435,6 +438,9 @@ def write_rmesh(rmesh_dict, output_path, file_type):
             elif entity_dict["entity_type"] == "door":
                 write_vector(rmesh_stream, entity_dict["position"])
                 write_integer(rmesh_stream, entity_dict["door_type"])
+                if file_type == ExportFileType.rmesh_salvage and rmesh_dict["rmesh_version"] >= 1:
+                    write_integer(rmesh_stream, entity_dict["door_identifier"])
+                    
                 write_integer(rmesh_stream, entity_dict["key_card_level"])
                 write_string(rmesh_stream, entity_dict["keypad_code"])
                 write_float(rmesh_stream, entity_dict["angle"])

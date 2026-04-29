@@ -5,6 +5,7 @@ from pathlib import Path
 from mathutils import Matrix, Vector, Quaternion
 from .process_x import write_x, read_x
 from .common_functions import (RandomColorGenerator,
+                               MaterialType,
                                get_file,
                                is_string_empty,
                                flip,
@@ -16,7 +17,7 @@ from .common_functions import (RandomColorGenerator,
                                SHADER_RESOURCES,
                                SHADER_NODE_NAMES)
 
-def generate_materials(materials_dict, random_color_gen, mesh, is_simple, ob_data, local_asset_path, error_log, material_list=None):
+def generate_materials(materials_dict, random_color_gen, mesh, is_simple, ob_data, local_asset_path, error_log, material_type_enum, material_list=None):
     for material_idx, material_dict in enumerate(materials_dict):
         material_name = ""
         if material_dict["name"] is None:
@@ -39,25 +40,45 @@ def generate_materials(materials_dict, random_color_gen, mesh, is_simple, ob_dat
         output_material_node = get_output_material_node(material)
         output_material_node.location = Vector((0.0, 0.0))
 
-        x_node = get_shader_node(material.node_tree, SHADER_RESOURCES, "cb_material")
-        x_node.name = "X Material"
-        x_node.location = (-440.0, 0.0)
-
-        connect_inputs(material.node_tree, x_node, "Shader", output_material_node, "Surface")
-
         sr, sg, sb = material_dict["specular"]
         er, eg, eb = material_dict["emissive"]
-        x_node.inputs["Diffuse Overlay"].default_value = material_dict["diffuse"]
-        x_node.inputs["Emission Strength"].default_value = material_dict["power"]
-        x_node.inputs["Specular Map"].default_value = (sr, sg, sb, 1)
-        x_node.inputs["Emission Map"].default_value = (er, eg, eb, 1)
+        if material_type_enum == MaterialType.simple:
+            bsdf_node = material.node_tree.nodes.new("ShaderNodeBsdfPrincipled")
+            bsdf_node.name = "Principled BSDF"
+            bsdf_node.location = (-440.0, 0.0)
+            connect_inputs(material.node_tree, bsdf_node, "BSDF", output_material_node, "Surface")
+
+            dr, dg, db, da = material_dict["diffuse"]
+            bsdf_node.inputs["Base Color"].default_value = (dr, dg, db, da)
+            bsdf_node.inputs["Alpha"].default_value = da
+            bsdf_node.inputs["Specular IOR Level"].default_value = sr
+            bsdf_node.inputs["Emission Color"].default_value = (er, eg, eb, 1.0)
+
+            shader_input_node = bsdf_node
+            shader_color_input = "Base Color"
+            shader_emission_input = "Emission Color"
+
+        else:
+            x_node = get_shader_node(material.node_tree, SHADER_RESOURCES, "cb_material")
+            x_node.name = "X Material"
+            x_node.location = (-440.0, 0.0)
+            connect_inputs(material.node_tree, x_node, "Shader", output_material_node, "Surface")
+
+            x_node.inputs["Diffuse Overlay"].default_value = material_dict["diffuse"]
+            x_node.inputs["Emission Strength"].default_value = material_dict["power"]
+            x_node.inputs["Specular Map"].default_value = (sr, sg, sb, 1)
+            x_node.inputs["Emission Map"].default_value = (er, eg, eb, 1)
+
+            shader_input_node = x_node
+            shader_color_input = "Diffuse Map"
+            shader_emission_input = "Emission Map"
 
         texture_node = get_file(material_dict["texture"], True, True, directory_path=local_asset_path)
         if texture_node:
             texture = material.node_tree.nodes.new("ShaderNodeTexImage")
             texture.location = (-720.0, 0)
             texture.image = texture_node
-            connect_inputs(material.node_tree, texture, "Color", x_node, "Diffuse Map")
+            connect_inputs(material.node_tree, texture, "Color", shader_input_node, shader_color_input)
 
             mapping_node, uv_node = generate_texture_mapping(material.node_tree, texture)
             uv_node.uv_map = "uvmap_render"
@@ -73,7 +94,15 @@ def generate_materials(materials_dict, random_color_gen, mesh, is_simple, ob_dat
                 texture_bump.interpolation = 'Cubic'
                 texture_bump.image.colorspace_settings.name = 'Non-Color'
                 texture_bump.location = (-720.0, -380)
-                connect_inputs(material.node_tree, texture_bump, "Color", x_node, "Normal Map")
+                
+                if material_type_enum == MaterialType.simple:
+                    normal_map_node = material.node_tree.nodes.new("ShaderNodeNormalMap")
+                    normal_map_node.location = (-720.0, -380)
+                    connect_inputs(material.node_tree, texture_bump, "Color", normal_map_node, "Color")
+                    connect_inputs(material.node_tree, normal_map_node, "Normal", shader_input_node, "Normal")
+
+                else:
+                    connect_inputs(material.node_tree, texture_bump, "Color", shader_input_node, "Normal Map")
 
                 mapping_node, uv_node = generate_texture_mapping(material.node_tree, texture_bump)
                 uv_node.uv_map = "uvmap_render"
@@ -84,7 +113,7 @@ def generate_materials(materials_dict, random_color_gen, mesh, is_simple, ob_dat
                 texture_glow.image = texture_glow_data
                 texture_glow.image.alpha_mode = 'CHANNEL_PACKED'
                 texture_glow.location = (-720.0, -760)
-                connect_inputs(material.node_tree, texture_glow, "Color", x_node, "Emission Map")
+                connect_inputs(material.node_tree, texture_glow, "Color", shader_input_node, shader_emission_input)
 
                 mapping_node, uv_node = generate_texture_mapping(material.node_tree, texture_glow)
                 uv_node.uv_map = "uvmap_render"
@@ -97,7 +126,7 @@ def generate_materials(materials_dict, random_color_gen, mesh, is_simple, ob_dat
         if material_list is not None:
             material_list.append(material)
 
-def create_object(arm_ob, parent_bone, x_dict, mesh_dict, room_scale, ob_data=None, is_simple=False, world_transform=None, material_list=[], local_asset_path="", error_log=set(), random_color_gen=None):
+def create_object(arm_ob, parent_bone, x_dict, mesh_dict, room_scale, material_type_enum, ob_data=None, is_simple=False, world_transform=None, material_list=[], local_asset_path="", error_log=set(), random_color_gen=None):
     loop_normals = []
     mesh_name = mesh_dict["name"]
     if mesh_name == None:
@@ -125,7 +154,7 @@ def create_object(arm_ob, parent_bone, x_dict, mesh_dict, room_scale, ob_data=No
         poly.use_smooth = True
 
     if not x_dict["xof_header"] == "xof 0302txt 0064":
-        generate_materials(mesh_dict["materials"], random_color_gen, mesh, is_simple, ob_data, local_asset_path, error_log)
+        generate_materials(mesh_dict["materials"], random_color_gen, mesh, is_simple, ob_data, local_asset_path, error_log, material_type_enum)
 
     else:
         for mat in material_list:
@@ -188,7 +217,7 @@ def blender_matrix_to_x(mat, room_scale):
 
     return matrix_array
 
-def create_bone(filepath, rigid_obs, arm_ob, x_dict, frame, room_scale, parent_bone=None, bm=None, ob_data=None, is_simple=False, material_list=[], local_asset_path="", error_log=set(), random_color_gen=None):
+def create_bone(filepath, rigid_obs, arm_ob, x_dict, frame, room_scale, material_type_enum, parent_bone=None, bm=None, ob_data=None, is_simple=False, material_list=[], local_asset_path="", error_log=set(), random_color_gen=None):
     name = frame["name"]
     world_transform = x_matrix_to_blender(frame["transform"], room_scale)
 
@@ -209,7 +238,7 @@ def create_bone(filepath, rigid_obs, arm_ob, x_dict, frame, room_scale, parent_b
         bone.matrix = world_transform
 
     for mesh_dict in frame["meshes"]:
-        object_mesh = create_object(arm_ob, bone, x_dict, mesh_dict, room_scale, ob_data, is_simple, world_transform, material_list, local_asset_path, error_log, random_color_gen)
+        object_mesh = create_object(arm_ob, bone, x_dict, mesh_dict, room_scale, material_type_enum, ob_data, is_simple, world_transform, material_list, local_asset_path, error_log, random_color_gen)
         if is_simple:
             bm.from_mesh(object_mesh)
             bpy.data.meshes.remove(object_mesh)
@@ -217,7 +246,7 @@ def create_bone(filepath, rigid_obs, arm_ob, x_dict, frame, room_scale, parent_b
         rigid_obs.append([object_mesh, bone_name, world_transform])
 
     for child in frame.get("children", []):
-        create_bone(filepath, rigid_obs, arm_ob, x_dict, child, room_scale, bone, bm, ob_data, is_simple, material_list, local_asset_path, error_log, random_color_gen)
+        create_bone(filepath, rigid_obs, arm_ob, x_dict, child, room_scale, material_type_enum, bone, bm, ob_data, is_simple, material_list, local_asset_path, error_log, random_color_gen)
 
 def get_linked_node(node, input_name, search_type):
     linked_node = None
@@ -479,6 +508,7 @@ def import_scene(context, filepath, report, bm=None, ob_data=None, is_simple=Fal
 
         game_path = Path(bpy.context.preferences.addons["io_scene_cb"].preferences.game_path)
         room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
+        material_type_enum = MaterialType(int(bpy.context.preferences.addons[__package__].preferences.material_type))
 
         local_asset_path = ""
         if not is_string_empty(str(game_path)) and str(filepath).startswith(str(game_path)):
@@ -494,11 +524,11 @@ def import_scene(context, filepath, report, bm=None, ob_data=None, is_simple=Fal
             bpy.ops.object.mode_set(mode='EDIT')
 
         if x_dict["xof_header"] == "xof 0302txt 0064":
-            generate_materials(x_dict["materials"], random_color_gen, None, is_simple, ob_data, local_asset_path, error_log, material_list)
+            generate_materials(x_dict["materials"], random_color_gen, None, is_simple, ob_data, local_asset_path, error_log, material_type_enum, material_list)
 
         rigid_obs = []
         for bone in x_dict["frames"]:
-            create_bone(filepath, rigid_obs, arm_ob, x_dict, bone, room_scale, None, bm, ob_data, is_simple, material_list, local_asset_path, error_log, random_color_gen)
+            create_bone(filepath, rigid_obs, arm_ob, x_dict, bone, room_scale, material_type_enum, None, bm, ob_data, is_simple, material_list, local_asset_path, error_log, random_color_gen)
 
         if not is_simple:
             bpy.ops.object.mode_set(mode='OBJECT')
@@ -511,7 +541,7 @@ def import_scene(context, filepath, report, bm=None, ob_data=None, is_simple=Fal
 
         if not x_dict["xof_header"] == "xof 0302txt 0064":
             for mesh_dict in x_dict["meshes"]:
-                object_mesh = create_object(arm_ob, None, x_dict, mesh_dict, room_scale, ob_data, is_simple, None, material_list, local_asset_path, error_log, random_color_gen)
+                object_mesh = create_object(arm_ob, None, x_dict, mesh_dict, room_scale, material_type_enum, ob_data, is_simple, None, material_list, local_asset_path, error_log, random_color_gen)
                 if is_simple:
                     bm.from_mesh(object_mesh)
                     bpy.data.meshes.remove(object_mesh)
