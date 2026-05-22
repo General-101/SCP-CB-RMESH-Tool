@@ -27,7 +27,9 @@ def import_mesh(data, node, random_color_gen, local_asset_path, room_scale, mate
     mesh.materials.append(material)
     material.diffuse_color = random_color_gen.next()
 
-    material.use_nodes = True
+    if bpy.app.version <= (5,0,0):
+        material.use_nodes = True
+
     for mat_node in material.node_tree.nodes:
         material.node_tree.nodes.remove(mat_node)
 

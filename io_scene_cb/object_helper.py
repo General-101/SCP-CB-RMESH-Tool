@@ -244,7 +244,11 @@ def create_door(door_type=DoorType.normal, button_type=ButtonType.normal, door_s
 
 def connect_lightmaps():
     for mat in bpy.data.materials:
-        if not mat.use_nodes or not mat.node_tree:
+        use_nodes = True
+        if bpy.app.version <= (5,0,0):
+            use_nodes = mat.use_nodes
+
+        if not use_nodes or not mat.node_tree:
             continue
 
         nodes = mat.node_tree.nodes
@@ -291,7 +295,11 @@ def connect_lightmaps():
 
 def disconnect_lightmaps():
     for mat in bpy.data.materials:
-        if not mat.use_nodes or not mat.node_tree:
+        use_nodes = True
+        if bpy.app.version <= (5,0,0):
+            use_nodes = mat.use_nodes
+
+        if not use_nodes or not mat.node_tree:
             continue
 
         nodes = mat.node_tree.nodes

@@ -182,7 +182,12 @@ def connect_inputs(tree, output_node, output_name, input_node, input_name):
 
 def get_output_material_node(mat):
     output_material_node = None
-    if not mat == None and mat.use_nodes and not mat.node_tree == None:
+
+    use_nodes = True
+    if bpy.app.version <= (5,0,0):
+        use_nodes = mat.use_nodes
+
+    if not mat == None and use_nodes and not mat.node_tree == None:
         for node in mat.node_tree.nodes:
             if node.type == "OUTPUT_MATERIAL" and node.is_active_output:
                 output_material_node = node

@@ -668,7 +668,11 @@ def get_mesh(b3d_data, ob, depsgraph, room_scale, armature_ob=None):
             mat_fx = 0
 
             scene_mat = bpy.data.materials.get(mat_name)
-            if scene_mat and scene_mat.use_nodes:
+            use_nodes = True
+            if bpy.app.version <= (5,0,0):
+                use_nodes = scene_mat.use_nodes
+
+            if scene_mat and use_nodes:
                 lightmap_node = None
                 diffuse_node = None
 
@@ -1376,7 +1380,9 @@ def import_scene(context, filepath, fullbright_materials, use_light_radius, repo
             material = bpy.data.materials.new(material_dict["name"])
             material.diffuse_color = random_color_gen.next()
 
-            material.use_nodes = True
+            if bpy.app.version <= (5,0,0):
+                material.use_nodes = True
+
             material.node_tree.nodes.clear()
 
             output_material_node = get_output_material_node(material)

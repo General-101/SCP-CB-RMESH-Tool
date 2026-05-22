@@ -264,7 +264,11 @@ def gather_mesh_data(ob, depsgraph, section_data, file_type, use_lightmap_name_o
             diffuse_texture_dict = {"texture_type": 0, "texture_name": ""}
 
             mat = bpy.data.materials.get(mat_name)
-            if mat and mat.use_nodes:
+            use_nodes = True
+            if bpy.app.version <= (5,0,0):
+                use_nodes = mat.use_nodes
+
+            if mat and use_nodes:
                 output_material_node = get_output_material_node(mat)
                 bdsf_principled = get_linked_node(output_material_node, "Surface", "BSDF_PRINCIPLED")
                 node_group = get_linked_node(output_material_node, "Surface", "GROUP")
@@ -710,7 +714,9 @@ def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_
         mesh.materials.append(mat)
         mesh_data.materials.append(mat)
 
-        mat.use_nodes = True
+        if bpy.app.version <= (5,0,0):
+            mat.use_nodes = True
+
         mat.node_tree.nodes.clear()
 
         output_material_node = get_output_material_node(mat)

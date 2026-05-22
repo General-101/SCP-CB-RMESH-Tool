@@ -34,7 +34,9 @@ def generate_materials(materials_dict, random_color_gen, mesh, is_simple, ob_dat
         if is_simple:
             ob_data.materials.append(material)
 
-        material.use_nodes = True
+        if bpy.app.version <= (5,0,0):
+            material.use_nodes = True
+
         material.node_tree.nodes.clear()
 
         output_material_node = get_output_material_node(material)

@@ -95,8 +95,8 @@ def read_rmesh(file_path, file_type):
     }
     with file_path.open("rb") as rmesh_stream:
         byte_length = file_path.stat().st_size
-        if byte_length > 0:
-            return rmesh_dict
+        if byte_length == 0:
+            return file_type, rmesh_dict
             
         rmesh_dict["rmesh_file_type"] = read_string(rmesh_stream)
         if rmesh_dict["rmesh_file_type"] != "RoomMesh" and rmesh_dict["rmesh_file_type"] != "RoomMesh.HasTriggerBox" and rmesh_dict["rmesh_file_type"] != "RoomMesh2" and rmesh_dict["rmesh_file_type"] != "RM":
