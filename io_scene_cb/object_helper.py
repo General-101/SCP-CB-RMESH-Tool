@@ -445,6 +445,7 @@ def get_used_materials(mesh):
     return used_materials
 
 def bake_lightmaps(context):
+    set_gamma = bpy.context.preferences.addons[__package__].preferences.set_gamma
     bpy.ops.wm.console_toggle()
     selected_obs = context.selected_objects
     depsgraph = context.evaluated_depsgraph_get()
@@ -566,7 +567,10 @@ def bake_lightmaps(context):
 
                 image.filepath_raw = save_path
                 image.file_format = 'PNG'
-                image.save_render(save_path)
+                if set_gamma:
+                    image.save_render(save_path)
+                else:
+                    image.save()
 
     for mat in bpy.data.materials:
         mat_settings = material_settings.get(mat.name)

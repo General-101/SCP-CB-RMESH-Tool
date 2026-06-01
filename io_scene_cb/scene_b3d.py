@@ -11,6 +11,8 @@ from .process_b3d import B3DTree, write_b3d
 from mathutils import Matrix, Vector, Quaternion
 from .common_functions import (RandomColorGenerator,
                                MaterialType,
+                               linear_to_gamma,
+                               gamma_to_linear,
                                get_file,
                                is_string_empty,
                                get_material_name,
@@ -61,7 +63,7 @@ class TextureTypeEnum(Enum):
     lightmap = 0
     diffuse = auto()
 
-def import_mesh(room_scale, node, material_list, is_simple=False, ob_data=None):
+def import_mesh(set_gamma, room_scale, node, material_list, is_simple=False, ob_data=None):
     loop_normals = []
 
     vertices = [room_scale * Vector(flip(vertex)) for vertex in node["vertices"]]
@@ -117,6 +119,11 @@ def import_mesh(room_scale, node, material_list, is_simple=False, ob_data=None):
 
             if rgba_count > 0:
                 r, g, b, a = node["rgba"][vert_index]
+                if set_gamma:
+                    r = gamma_to_linear(r)
+                    g = gamma_to_linear(g)
+                    b = gamma_to_linear(b)
+
                 layer_color_list[loop_index] = (r, g, b, 1)
                 layer_alpha_list[loop_index] = (a, a, a, 1)
 
@@ -312,7 +319,7 @@ def get_bone_distance(node, parent_ob, room_scale):
 
     return bone_distance
 
-def import_node_recursive(context, data, node, material_list, room_scale, armature=None, strips=None, has_skeleton=False, use_light_radius=True, parent_ob=None, last_mesh=None, is_simple=False, bm=None, ob_data=None, bm_transform=None, world_transform=None):
+def import_node_recursive(context, data, node, material_list, room_scale, set_gamma, armature=None, strips=None, has_skeleton=False, use_light_radius=True, parent_ob=None, last_mesh=None, is_simple=False, bm=None, ob_data=None, bm_transform=None, world_transform=None):
     has_skin = bool(node.get("bones"))
     has_key = node.get("key") is not None
     has_mesh = node.get("mesh") is not None
@@ -327,13 +334,13 @@ def import_node_recursive(context, data, node, material_list, room_scale, armatu
             else:
                 bm_transform = node_transform
 
-            mesh_data = import_mesh(room_scale, node["mesh"], material_list, is_simple, ob_data)
+            mesh_data = import_mesh(set_gamma, room_scale, node["mesh"], material_list, is_simple, ob_data)
             mesh_data.transform(bm_transform)
             bm.from_mesh(mesh_data)
             bpy.data.meshes.remove(mesh_data)
 
         for child_node in node["nodes"]:
-            import_node_recursive(context, data, child_node, material_list, room_scale, is_simple=is_simple, bm=bm, ob_data=ob_data, bm_transform=bm_transform)
+            import_node_recursive(context, data, child_node, material_list, room_scale, set_gamma, is_simple=is_simple, bm=bm, ob_data=ob_data, bm_transform=bm_transform)
 
     else:
         if has_skin or has_key or armature:
@@ -432,7 +439,7 @@ def import_node_recursive(context, data, node, material_list, room_scale, armatu
 
                 mesh_data = None
                 if node.get("mesh"):
-                    mesh_data = import_mesh(room_scale, node["mesh"], material_list)
+                    mesh_data = import_mesh(set_gamma, room_scale, node["mesh"], material_list)
 
                 object_mesh = bpy.data.objects.new(result["classname"], mesh_data)
                 context.collection.objects.link(object_mesh)
@@ -444,7 +451,7 @@ def import_node_recursive(context, data, node, material_list, room_scale, armatu
 
                 mesh_data = None
                 if node.get("mesh"):
-                    mesh_data = import_mesh(room_scale, node["mesh"], material_list)
+                    mesh_data = import_mesh(set_gamma, room_scale, node["mesh"], material_list)
 
                 object_mesh = bpy.data.objects.new(result["classname"], mesh_data)
                 context.collection.objects.link(object_mesh)
@@ -456,7 +463,7 @@ def import_node_recursive(context, data, node, material_list, room_scale, armatu
 
                 mesh_data = None
                 if node.get("mesh"):
-                    mesh_data = import_mesh(room_scale, node["mesh"], material_list)
+                    mesh_data = import_mesh(set_gamma, room_scale, node["mesh"], material_list)
 
                 object_mesh = bpy.data.objects.new(result["classname"], mesh_data)
                 context.collection.objects.link(object_mesh)
@@ -468,7 +475,7 @@ def import_node_recursive(context, data, node, material_list, room_scale, armatu
 
                 mesh_data = None
                 if node.get("mesh"):
-                    mesh_data = import_mesh(room_scale, node["mesh"], material_list)
+                    mesh_data = import_mesh(set_gamma, room_scale, node["mesh"], material_list)
 
                 object_mesh = bpy.data.objects.new(result["classname"], mesh_data)
                 context.collection.objects.link(object_mesh)
@@ -480,7 +487,7 @@ def import_node_recursive(context, data, node, material_list, room_scale, armatu
 
                 mesh_data = None
                 if node.get("mesh"):
-                    mesh_data = import_mesh(room_scale, node["mesh"], material_list)
+                    mesh_data = import_mesh(set_gamma, room_scale, node["mesh"], material_list)
 
                 object_mesh = bpy.data.objects.new(result["classname"], mesh_data)
                 context.collection.objects.link(object_mesh)
@@ -561,7 +568,7 @@ def import_node_recursive(context, data, node, material_list, room_scale, armatu
             else:
                 if not generated_mesh and has_mesh and not has_skeleton:
                     generated_mesh = True
-                    mesh_data = import_mesh(room_scale, node["mesh"], material_list)
+                    mesh_data = import_mesh(set_gamma, room_scale, node["mesh"], material_list)
                     object_mesh = bpy.data.objects.new(node["name"], mesh_data)
                     context.collection.objects.link(object_mesh)
                     object_mesh.cb.object_type = str(ObjectType.mesh.value)
@@ -580,7 +587,7 @@ def import_node_recursive(context, data, node, material_list, room_scale, armatu
 
         if not generated_mesh and has_mesh:
             generated_mesh = True
-            mesh_data = import_mesh(room_scale, node["mesh"], material_list)
+            mesh_data = import_mesh(set_gamma, room_scale, node["mesh"], material_list)
             last_mesh = bpy.data.objects.new(node["name"], mesh_data)
             context.collection.objects.link(last_mesh)
 
@@ -614,9 +621,9 @@ def import_node_recursive(context, data, node, material_list, room_scale, armatu
         world_transform = world_transform @ node_transform
 
         for child_node in node["nodes"]:
-            import_node_recursive(context, data, child_node, material_list, room_scale, armature, strips, has_skeleton, use_light_radius, object_mesh, last_mesh, world_transform=world_transform)
+            import_node_recursive(context, data, child_node, material_list, room_scale, set_gamma, armature, strips, has_skeleton, use_light_radius, object_mesh, last_mesh, world_transform=world_transform)
 
-def get_mesh(b3d_data, ob, depsgraph, room_scale, armature_ob=None):
+def get_mesh(set_gamma, b3d_data, ob, depsgraph, room_scale, armature_ob=None):
     ob_eval = ob.evaluated_get(depsgraph)
     mesh = ob_eval.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
     mesh.calc_loop_triangles()
@@ -855,7 +862,12 @@ def get_mesh(b3d_data, ob, depsgraph, room_scale, armature_ob=None):
                     r, g, b, a = layer_color.data[loop.vertex_index].color
                 elif layer_color.domain == 'CORNER':
                     r, g, b, a = layer_color.data[loop_index].color
-                
+
+                if set_gamma:
+                    r = linear_to_gamma(r)
+                    g = linear_to_gamma(g)
+                    b = linear_to_gamma(b)
+
                 color = (r, g, b, a)
                 if layer_alpha:
                     # If someone uses color in a greyscale channel that's their own damn fault.
@@ -982,7 +994,6 @@ def get_scene_bones(b3d_data, node_dict, depsgraph, room_scale, skin_info=None, 
 
                     ob_node_dict["key"].append(action_entry)
 
-
             get_scene_bones(b3d_data, ob_node_dict["nodes"], depsgraph, room_scale, skin_info, key_info, armature, bone)
 
             node_dict.append(ob_node_dict)
@@ -1032,7 +1043,7 @@ def get_node_name(ob, room_scale):
 
     return node_name
 
-def get_scene_objects(context, b3d_data, node_dict, depsgraph, skin_info, key_info, armature_ob, room_scale, parent_ob=None):
+def get_scene_objects(context, set_gamma, b3d_data, node_dict, depsgraph, skin_info, key_info, armature_ob, room_scale, parent_ob=None):
     for ob in bpy.data.objects:
         if ob.parent == parent_ob:
             if ob.type == "MESH" and armature_ob is not None and ob.parent == armature_ob:
@@ -1111,10 +1122,10 @@ def get_scene_objects(context, b3d_data, node_dict, depsgraph, skin_info, key_in
 
             else:
                 if ob.type == "MESH":
-                    skin_info, mesh_dict = get_mesh(b3d_data, ob, depsgraph, room_scale)
+                    skin_info, mesh_dict = get_mesh(set_gamma, b3d_data, ob, depsgraph, room_scale)
                     ob_node_dict["mesh"] = mesh_dict
 
-            get_scene_objects(context, b3d_data, ob_node_dict["nodes"], depsgraph, skin_info, key_info, armature_ob, room_scale, ob)
+            get_scene_objects(context, set_gamma, b3d_data, ob_node_dict["nodes"], depsgraph, skin_info, key_info, armature_ob, room_scale, ob)
 
             node_dict.append(ob_node_dict)
 
@@ -1261,6 +1272,7 @@ def gather_keyframe_data(context, armature, node_data):
 
 def export_scene(context, filepath, report):
     room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
+    set_gamma = bpy.context.preferences.addons[__package__].preferences.set_gamma
     active_ob = context.view_layer.objects.active
     if active_ob is not None:
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -1280,7 +1292,7 @@ def export_scene(context, filepath, report):
             armature_ob.data.pose_position = 'REST'
             depsgraph.update()
 
-            skin_info, mesh_dict = get_mesh(b3d_data, node_ob, depsgraph, room_scale, armature_ob)
+            skin_info, mesh_dict = get_mesh(set_gamma, b3d_data, node_ob, depsgraph, room_scale, armature_ob)
 
             armature_ob.data.pose_position = 'POSE'
             depsgraph.update()
@@ -1288,7 +1300,7 @@ def export_scene(context, filepath, report):
         elif node_ob.type == "ARMATURE":
             gather_keyframe_data(context, node_ob, key_dict)
 
-    get_scene_objects(context, b3d_data, b3d_data["nodes"], depsgraph, skin_info, key_dict, armature_ob, room_scale)
+    get_scene_objects(context, set_gamma, b3d_data, b3d_data["nodes"], depsgraph, skin_info, key_dict, armature_ob, room_scale)
 
     if armature_ob and len(b3d_data["nodes"]) > 0:
         root_node = b3d_data["nodes"][0]
@@ -1349,6 +1361,7 @@ def import_scene(context, filepath, fullbright_materials, use_light_radius, repo
     game_path = Path(bpy.context.preferences.addons[__package__].preferences.game_path)
     room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
     material_type_enum = MaterialType(int(bpy.context.preferences.addons[__package__].preferences.material_type))
+    set_gamma = bpy.context.preferences.addons[__package__].preferences.set_gamma
 
     local_asset_path = ""
     if not is_string_empty(str(game_path)) and str(filepath).startswith(str(game_path)):
@@ -1543,7 +1556,7 @@ def import_scene(context, filepath, fullbright_materials, use_light_radius, repo
             break
 
     for child_node in data["nodes"]:
-        import_node_recursive(context, data, child_node, material_list, room_scale, armature_ob, strips, has_skeleton, use_light_radius, is_simple=is_simple, bm=bm, ob_data=ob_data)
+        import_node_recursive(context, data, child_node, material_list, room_scale, set_gamma, armature_ob, strips, has_skeleton, use_light_radius, is_simple=is_simple, bm=bm, ob_data=ob_data)
 
     if not is_simple:
         if context.view_layer.objects.active is not None:

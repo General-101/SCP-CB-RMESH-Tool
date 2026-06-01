@@ -14,6 +14,8 @@ from .process_rmesh import TextureType, write_rmesh, read_rmesh, ImportFileType,
 from .common_functions import (RandomColorGenerator,
                                ObjectType,
                                MaterialType,
+                               linear_to_gamma,
+                               gamma_to_linear,
                                get_referenced_collection,
                                get_file,
                                is_string_empty,
@@ -151,12 +153,6 @@ def update_object(context, report):
 def natural_key(s):
     return [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', s)]
 
-def linear_to_gamma(v):
-    return pow(v, 1.0 / 2.2)
-
-def gamma_to_linear(v):
-    return pow(v, 2.2)
-
 axis_swap = Matrix(((1,0,0), (0,0,1), (0,1,0)))
 def get_blender_rot(rotation, is_spotlight=False):
     pitch, yaw, roll = rotation
@@ -233,7 +229,7 @@ def collect_objects():
 
     return mesh_list, render_list, collision_list, trigger_box_list, entity_list
 
-def gather_mesh_data(ob, depsgraph, section_data, file_type, use_lightmap_name_override, room_scale, is_collision=False):
+def gather_mesh_data(ob, depsgraph, section_data, file_type, use_lightmap_name_override, room_scale, set_gamma, is_collision=False):
     ob_eval = ob.evaluated_get(depsgraph)
     mesh = ob_eval.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
     mesh.calc_loop_triangles()
@@ -394,9 +390,10 @@ def gather_mesh_data(ob, depsgraph, section_data, file_type, use_lightmap_name_o
                 elif layer_color.domain == 'CORNER':
                     r, g, b, a = layer_color.data[loop_index].color
 
-                r = linear_to_gamma(r)
-                g = linear_to_gamma(g)
-                b = linear_to_gamma(b)
+                if set_gamma:
+                    r = linear_to_gamma(r)
+                    g = linear_to_gamma(g)
+                    b = linear_to_gamma(b)
 
             color = (int(round(r * 255)), int(round(g * 255)), int(round(b * 255)))
 
@@ -415,6 +412,7 @@ def gather_mesh_data(ob, depsgraph, section_data, file_type, use_lightmap_name_o
 def export_scene(context, filepath, file_type, use_lightmap_name_override, report):
     game_path = Path(bpy.context.preferences.addons[__package__].preferences.game_path)
     room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
+    set_gamma = bpy.context.preferences.addons[__package__].preferences.set_gamma
 
     if context.view_layer.objects.active is not None:
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -453,21 +451,21 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
 
     mesh_section_data = {}
     for mesh_ob in mesh_list:
-        gather_mesh_data(mesh_ob, depsgraph, mesh_section_data, file_type, use_lightmap_name_override, room_scale)
+        gather_mesh_data(mesh_ob, depsgraph, mesh_section_data, file_type, use_lightmap_name_override, room_scale, set_gamma)
 
     for mesh_dict in mesh_section_data.values():
         rmesh_dict["meshes"].append(mesh_dict)
 
     render_section_data = {}
     for render_ob in render_list:
-        gather_mesh_data(render_ob, depsgraph, render_section_data, file_type, use_lightmap_name_override, room_scale)
+        gather_mesh_data(render_ob, depsgraph, render_section_data, file_type, use_lightmap_name_override, room_scale, set_gamma)
 
     for render_dict in render_section_data.values():
         rmesh_dict["render_meshes"].append(render_dict)
 
     collision_section_data = {}
     for ob in collision_list:
-        gather_mesh_data(ob, depsgraph, collision_section_data, file_type, use_lightmap_name_override, room_scale, True)
+        gather_mesh_data(ob, depsgraph, collision_section_data, file_type, use_lightmap_name_override, room_scale, set_gamma, True)
 
     for collision_dict in collision_section_data.values():
         rmesh_dict["collision_meshes"].append(collision_dict)
@@ -489,7 +487,7 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
                 rmesh_dict["trigger_boxes"].append(trigger_entry)
 
             tb_section_data = {}
-            gather_mesh_data(ob, depsgraph, tb_section_data, file_type, use_lightmap_name_override, room_scale, True)
+            gather_mesh_data(ob, depsgraph, tb_section_data, file_type, use_lightmap_name_override, room_scale, set_gamma, True)
 
             for tb_dict in tb_section_data.values():
                 trigger_entry["meshes"].append(tb_dict)
@@ -696,7 +694,7 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
     report({'INFO'}, "Export completed successfully")
     return {'FINISHED'}
 
-def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, is_collision=False):
+def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, set_gamma, is_collision=False):
     mesh_name = "temp_mesh"
     if mesh_data is None:
         mesh_name = "mesh"
@@ -862,9 +860,15 @@ def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_
                 vertex = mesh_dict["vertices"][vert_index]
                 layer_uv_0.data[loop_index].uv = (vertex["uv_render"][0], 1 - vertex["uv_render"][1])
                 layer_uv_1.data[loop_index].uv = (vertex["uv_lightmap"][0], 1 - vertex["uv_lightmap"][1])
-                r = gamma_to_linear(vertex["color"][0] / 255)
-                g = gamma_to_linear(vertex["color"][1] / 255)
-                b = gamma_to_linear(vertex["color"][2] / 255)
+
+                r = vertex["color"][0] / 255
+                g = vertex["color"][1] / 255
+                b = vertex["color"][2] / 255
+                if set_gamma:
+                    r = gamma_to_linear(r)
+                    g = gamma_to_linear(g)
+                    b = gamma_to_linear(b)
+
                 layer_color.data[loop_index].color = (r, g, b, 1.0)
                 if file_type == ImportFileType.rmesh_uer2:
                     loop_normals.append(Vector(vertex["normal"]))
@@ -881,6 +885,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
     game_path = Path(bpy.context.preferences.addons[__package__].preferences.game_path)
     room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
     material_type_enum = MaterialType(int(bpy.context.preferences.addons[__package__].preferences.material_type))
+    set_gamma = bpy.context.preferences.addons[__package__].preferences.set_gamma
 
     random_color_gen = RandomColorGenerator() # generates a random sequence of colors
 
@@ -929,7 +934,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                 context.scene.collection.objects.link(object_mesh)
 
                 bm = bmesh.new()
-                temp_mesh = generate_mesh_data(mesh_dict, single_mesh, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale)
+                temp_mesh = generate_mesh_data(mesh_dict, single_mesh, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, set_gamma)
                 bm.from_mesh(temp_mesh)
                 bpy.data.meshes.remove(temp_mesh)
                 bm.to_mesh(single_mesh)
@@ -950,7 +955,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
 
             bm = bmesh.new()
             for mesh_idx, mesh_dict in enumerate(rmesh_dict["meshes"]):
-                temp_mesh = generate_mesh_data(mesh_dict, full_mesh, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale)
+                temp_mesh = generate_mesh_data(mesh_dict, full_mesh, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, set_gamma)
                 bm.from_mesh(temp_mesh)
                 bpy.data.meshes.remove(temp_mesh)
 
@@ -976,7 +981,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
 
             bm = bmesh.new()
             for render_idx, render_dict in enumerate(rmesh_dict["render_meshes"]):
-                temp_render = generate_mesh_data(render_dict, render_mesh, render_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale)
+                temp_render = generate_mesh_data(render_dict, render_mesh, render_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, set_gamma)
 
                 bm.from_mesh(temp_render)
                 bpy.data.meshes.remove(temp_render)
@@ -987,7 +992,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
     if has_collision_data and import_collisions:
         collision_collection = get_referenced_collection("collisions", context.scene.collection, True)
         for collision_idx, collision_dict in enumerate(rmesh_dict["collision_meshes"]):
-            collision_mesh = generate_mesh_data(collision_dict, None, collision_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, True)
+            collision_mesh = generate_mesh_data(collision_dict, None, collision_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, set_gamma, True)
             collision_ob = bpy.data.objects.new("collision_%s" % collision_idx, collision_mesh)
             collision_ob.cb.object_type = str(ObjectType.collision.value)
             collision_collection.objects.link(collision_ob)
@@ -1005,7 +1010,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
             for trigger_box_idx, trigger_box_dict in enumerate(rmesh_dict["trigger_boxes"]):
                 for trigger_idx, trigger_dict in enumerate(trigger_box_dict["meshes"]):
                     trigger_name = "trigger_g%st%s" % (trigger_box_idx, trigger_idx)
-                    trigger_mesh = generate_mesh_data(trigger_dict, None, trigger_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, True)
+                    trigger_mesh = generate_mesh_data(trigger_dict, None, trigger_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, set_gamma, True)
                     trigger_mesh_object_mesh = bpy.data.objects.new(trigger_name, trigger_mesh)
                     trigger_mesh_object_mesh.cb.object_type = str(ObjectType.trigger_box.value)
                     trigger_mesh_object_mesh.cb.trigger_group = trigger_box_dict["name"]

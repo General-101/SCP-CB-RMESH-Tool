@@ -61,6 +61,12 @@ class SCPCBAddonPrefs(bpy.types.AddonPreferences):
                 )
         )
 
+    set_gamma: BoolProperty(
+        name ="Set Gamma",
+        description = "Use scene gamma during imports/exports/bakes for vertex colors and baked lightmap images",
+        default = False,
+        )
+
     def draw(self, context):
         layout = self.layout
 
@@ -76,6 +82,9 @@ class SCPCBAddonPrefs(bpy.types.AddonPreferences):
         row = col.row()
         row.label(text='Material Type:')
         row.prop(self, "material_type", text='')
+        row = col.row()
+        row.label(text='Set Gamma:')
+        row.prop(self, "set_gamma", text='')
 
 class CBObjectPropertiesGroup(PropertyGroup):
     object_type: EnumProperty(

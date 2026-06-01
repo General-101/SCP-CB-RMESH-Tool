@@ -30,6 +30,12 @@ class MaterialType(Enum):
     full = 0
     simple = auto()
 
+def linear_to_gamma(v):
+    return pow(v, 1.0 / 2.2)
+
+def gamma_to_linear(v):
+    return pow(v, 2.2)
+
 def lim32(n):
     """Simulate a 32 bit unsigned interger overflow"""
     return n & 0xFFFFFFFF
@@ -129,7 +135,6 @@ def get_file(file_name, use_image_set=True, generate_image_node=True, directory_
                 for file in os.listdir(asset_directory):
                     absolute_file_path = os.path.join(asset_directory, file)
                     if os.path.isfile(absolute_file_path):
-                        print("AF: ", absolute_file_path)
                         for extension in extension_set:
                             file_name_w_ext = os.path.basename(file_name).lower()
                             file_name_wo_ext = file_name_w_ext.rsplit(".", 1)[0]
