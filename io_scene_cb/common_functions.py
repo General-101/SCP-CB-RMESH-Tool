@@ -121,17 +121,24 @@ def get_file(file_name, use_image_set=True, generate_image_node=True, directory_
     asset_directory = os.path.join(game_path, directory_path)
     if not is_string_empty(asset_directory) and file_name is not None:
         if not is_string_empty(directory_path):
-            for file in os.listdir(asset_directory):
-                absolute_file_path = os.path.join(asset_directory, file)
-                if os.path.isfile(absolute_file_path):
-                    for extension in extension_set:
-                        file_name_w_ext = os.path.basename(file_name).lower()
-                        file_name_wo_ext = file_name_w_ext.rsplit(".", 1)[0]
-                        if file_name_wo_ext == "scp-012_diffuse": # The SCP 12 model references a texture that doesn't exist so putting this hack here - Gen
-                            file_name_wo_ext = "scp-012_0"
-                        if file.lower() == "%s.%s" % (file_name_wo_ext, extension):
-                            file_path = os.path.join(asset_directory, file)
-                            break
+            file_check = os.path.join(asset_directory, file_name)
+            if os.path.isfile(file_check):
+                file_path = file_check
+
+            else:
+                for file in os.listdir(asset_directory):
+                    absolute_file_path = os.path.join(asset_directory, file)
+                    if os.path.isfile(absolute_file_path):
+                        print("AF: ", absolute_file_path)
+                        for extension in extension_set:
+                            file_name_w_ext = os.path.basename(file_name).lower()
+                            file_name_wo_ext = file_name_w_ext.rsplit(".", 1)[0]
+                            if file_name_wo_ext == "scp-012_diffuse": # The SCP 12 model references a texture that doesn't exist so putting this hack here - Gen
+                                file_name_wo_ext = "scp-012_0"
+
+                            if file.lower() == "%s.%s" % (file_name_wo_ext, extension):
+                                file_path = os.path.join(asset_directory, file)
+                                break
 
         if file_path is None:
             for root, dirs, files in os.walk(game_path):

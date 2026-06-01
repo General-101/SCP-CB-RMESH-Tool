@@ -36,36 +36,62 @@ class DoorState(Enum):
 
 def create_object(ob_bm, ob_data, ob_transform, model_path):
     if str(model_path).lower().endswith(".x"):
-        material_count = len(ob_data.materials)
+        if os.path.isfile(model_path):
+            material_count = len(ob_data.materials)
 
-        temp_data = bpy.data.meshes.new("door_entity")
-        bm = bmesh.new()
-        is_simple=True
-        import_x(bpy.context, model_path, print, bm, ob_data, is_simple)
-        for f in bm.faces:
-            f.material_index = material_count + f.material_index
+            temp_data = bpy.data.meshes.new("door_entity")
+            bm = bmesh.new()
+            is_simple=True
+            import_x(bpy.context, model_path, print, bm, ob_data, is_simple)
+            for f in bm.faces:
+                f.material_index = material_count + f.material_index
 
-        bm.to_mesh(temp_data)
-        temp_data.transform(ob_transform)
-        ob_bm.from_mesh(temp_data)
-        bm.free()
-        bpy.data.meshes.remove(temp_data)
+            bm.to_mesh(temp_data)
+            temp_data.transform(ob_transform)
+            ob_bm.from_mesh(temp_data)
+            bm.free()
+            bpy.data.meshes.remove(temp_data)
+        else:
+            print(model_path)
+            print("FILE PATH NOT FOUND. CHECK YOUR GAME PATH SETTINGS OR YOUR GAME FOLDER")
+            temp_data = bpy.data.meshes.new("door_entity")
+            bm = bmesh.new()
+            bmesh.ops.create_cube(bm,size=1.0)
 
-    if str(model_path).lower().endswith(".b3d"):
-        material_count = len(ob_data.materials)
+            bm.to_mesh(temp_data)
+            temp_data.transform(ob_transform)
+            ob_bm.from_mesh(temp_data)
+            bm.free()
+            bpy.data.meshes.remove(temp_data)
 
-        temp_data = bpy.data.meshes.new("door_entity")
-        bm = bmesh.new()
-        is_simple=True
-        import_b3d(bpy.context, model_path, False, True, print, bm, ob_data, is_simple)
-        for f in bm.faces:
-            f.material_index = material_count + f.material_index
+    elif str(model_path).lower().endswith(".b3d"):
+        if os.path.isfile(model_path):
+            material_count = len(ob_data.materials)
 
-        bm.to_mesh(temp_data)
-        temp_data.transform(ob_transform)
-        ob_bm.from_mesh(temp_data)
-        bm.free()
-        bpy.data.meshes.remove(temp_data)
+            temp_data = bpy.data.meshes.new("door_entity")
+            bm = bmesh.new()
+            is_simple=True
+            import_b3d(bpy.context, model_path, False, True, print, bm, ob_data, is_simple)
+            for f in bm.faces:
+                f.material_index = material_count + f.material_index
+
+            bm.to_mesh(temp_data)
+            temp_data.transform(ob_transform)
+            ob_bm.from_mesh(temp_data)
+            bm.free()
+            bpy.data.meshes.remove(temp_data)
+        else:
+            print(model_path)
+            print("FILE PATH NOT FOUND. CHECK YOUR GAME PATH SETTINGS OR YOUR GAME FOLDER")
+            temp_data = bpy.data.meshes.new("door_entity")
+            bm = bmesh.new()
+            bmesh.ops.create_cube(bm,size=1.0)
+
+            bm.to_mesh(temp_data)
+            temp_data.transform(ob_transform)
+            ob_bm.from_mesh(temp_data)
+            bm.free()
+            bpy.data.meshes.remove(temp_data)
 
 def create_door(door_type=DoorType.normal, button_type=ButtonType.normal, door_state=DoorState.closed, door_halved=False, file_type=ImportFileType.rmesh, entity_idx=0, sd_ob=None, sba_ob=None, sbb_ob=None):
     if sd_ob:
