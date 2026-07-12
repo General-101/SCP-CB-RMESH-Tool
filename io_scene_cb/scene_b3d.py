@@ -1044,7 +1044,7 @@ def get_node_name(ob, room_scale):
     return node_name
 
 def get_scene_objects(context, set_gamma, b3d_data, node_dict, depsgraph, skin_info, key_info, armature_ob, room_scale, parent_ob=None):
-    for ob in bpy.data.objects:
+    for ob in bpy.context.view_layer.objects:
         if ob.parent == parent_ob:
             if ob.type == "MESH" and armature_ob is not None and ob.parent == armature_ob:
                 continue
@@ -1285,7 +1285,7 @@ def export_scene(context, filepath, report):
     skin_info = None
     mesh_dict = None
     key_dict = defaultdict(list)
-    for node_ob in bpy.data.objects:
+    for node_ob in bpy.context.view_layer.objects:
         if node_ob.type == "MESH" and node_ob.parent and node_ob.parent.type == "ARMATURE" and node_ob.parent.animation_data is not None and node_ob.parent.animation_data.nla_tracks is not None:
             armature_ob = node_ob.parent
 

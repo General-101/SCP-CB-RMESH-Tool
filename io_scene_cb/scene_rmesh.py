@@ -191,7 +191,7 @@ def collect_objects():
     trigger_box_list = []
     entity_list = []
 
-    for ob in bpy.data.objects:
+    for ob in bpy.context.view_layer.objects:
         ob_type = ObjectType(int(ob.cb.object_type))
         if ob_type == ObjectType.mesh:
             if ob.type == 'MESH':

@@ -442,7 +442,7 @@ def export_scene(context, output_path, report):
         armature_ob = context.object
 
     if armature_ob is None:
-        for ob in bpy.data.objects:
+        for ob in bpy.context.view_layer.objects:
             if ob.type == 'ARMATURE' and len(ob.data.bones) > 0:
                 context.view_layer.objects.active = ob
                 armature_ob = ob
@@ -466,7 +466,7 @@ def export_scene(context, output_path, report):
 
         armature_ob.data.pose_position = 'REST'
         depsgraph = context.evaluated_depsgraph_get()
-        for ob in bpy.data.objects:
+        for ob in bpy.context.view_layer.objects:
             if ob.type == "MESH":
                 if ob.parent_type == 'OBJECT' and ob.parent == armature_ob:
                     skinned_ob_list.append(ob)
