@@ -105,7 +105,7 @@ def read_3dw(file_path):
                 if MaterialFlags.has_extension in MaterialFlags(flags):
                     extension_name = _3dw_dict["names"][read_integer(_3dw_stream) - 1]
 
-                new_group = {"flags": flags, "group_name": group_index, "object_name": object_name, "extension_name": extension_name}
+                new_group = {"flags": flags, "group_name": group_name, "object_name": object_name, "extension_name": extension_name}
                 _3dw_dict["materials"].append(object_name)
 
             else:
