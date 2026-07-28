@@ -98,7 +98,7 @@ def import_mesh(set_gamma, room_scale, node, material_list, is_simple=False, ob_
     material_count = len(material_indicies)
     loop_count = len(mesh.loops)
     layer_color_list = [(1, 1, 1, 1) for i in range(loop_count)]
-    layer_alpha_list = [(1, 1, 1, 1) for i in range(loop_count)]
+    #layer_alpha_list = [(1, 1, 1, 1) for i in range(loop_count)]
     for poly_idx, poly in enumerate(mesh.polygons):
         poly.use_smooth = True
         if material_count > poly_idx:
@@ -124,8 +124,8 @@ def import_mesh(set_gamma, room_scale, node, material_list, is_simple=False, ob_
                     g = gamma_to_linear(g)
                     b = gamma_to_linear(b)
 
-                layer_color_list[loop_index] = (r, g, b, 1)
-                layer_alpha_list[loop_index] = (a, a, a, 1)
+                layer_color_list[loop_index] = (r, g, b, a)
+                #layer_alpha_list[loop_index] = (a, a, a, 1)
 
     if rgba_count > 0:
         layer_color = mesh.color_attributes.new("color", "BYTE_COLOR", "CORNER")
@@ -135,10 +135,10 @@ def import_mesh(set_gamma, room_scale, node, material_list, is_simple=False, ob_
             r, g, b, a = layer_color_list[color_idx]
             layer_color.data[color_idx].color = (r, g, b, a)
 
-        layer_alpha = mesh.color_attributes.new("alpha", "BYTE_COLOR", "CORNER")
-        for color_idx in range(loop_count):
-            r, g, b, a = layer_alpha_list[color_idx]
-            layer_alpha.data[color_idx].color = (r, g, b, a)
+        #layer_alpha = mesh.color_attributes.new("alpha", "BYTE_COLOR", "CORNER")
+        #for color_idx in range(loop_count):
+            #r, g, b, a = layer_alpha_list[color_idx]
+            #layer_alpha.data[color_idx].color = (r, g, b, a)
 
     if normal_count > 0:
         mesh.normals_split_custom_set(loop_normals)
@@ -636,15 +636,15 @@ def get_mesh(set_gamma, b3d_data, ob, depsgraph, room_scale, armature_ob=None):
     layer_uv_0 = mesh.uv_layers.get("uvmap_render")
     layer_uv_1 = mesh.uv_layers.get("uvmap_lightmap")
     layer_color = mesh.color_attributes.get("color")
-    layer_alpha = mesh.color_attributes.get("alpha")
+    #layer_alpha = mesh.color_attributes.get("alpha")
     if uv_layer_count > 0 and not layer_uv_0:
         layer_uv_0 = mesh.uv_layers[0]
     if uv_layer_count > 1 and not layer_uv_1:
         layer_uv_1 = mesh.uv_layers[1]
     if color_layer_count > 0 and not layer_color:
         layer_color = mesh.color_attributes[0]
-    if color_layer_count > 1 and not layer_alpha:
-        layer_alpha = mesh.color_attributes[1]
+    #if color_layer_count > 1 and not layer_alpha:
+        #layer_alpha = mesh.color_attributes[1]
 
     mesh_dict = {
         "brush_id": -1,
@@ -869,14 +869,14 @@ def get_mesh(set_gamma, b3d_data, ob, depsgraph, room_scale, armature_ob=None):
                     b = linear_to_gamma(b)
 
                 color = (r, g, b, a)
-                if layer_alpha:
+                #if layer_alpha:
                     # If someone uses color in a greyscale channel that's their own damn fault.
-                    if layer_color.domain == 'POINT':
-                        ar, ag, ab, aa = layer_alpha.data[loop.vertex_index].color
-                    elif layer_color.domain == 'CORNER':
-                        ar, ag, ab, aa = layer_alpha.data[loop_index].color
+                    #if layer_color.domain == 'POINT':
+                        #ar, ag, ab, aa = layer_alpha.data[loop.vertex_index].color
+                    #elif layer_color.domain == 'CORNER':
+                        #ar, ag, ab, aa = layer_alpha.data[loop_index].color
                         
-                    color = (r, g, b, ar)
+                    #color = (r, g, b, ar)
 
             v_skins = set()
             for vertex_group in v.groups:
@@ -1428,9 +1428,9 @@ def import_scene(context, filepath, fullbright_materials, use_light_radius, repo
                     attr_node = material.node_tree.nodes.new("ShaderNodeVertexColor")
                     attr_node.location = (-720.0, 0)
 
-                    connect_inputs(material.node_tree, attr_node, "Color", b3d_node, "Diffuse Map Alpha")
+                    connect_inputs(material.node_tree, attr_node, "Alpha", b3d_node, "Diffuse Map Alpha")
                     material.surface_render_method = 'BLENDED'
-                    attr_node.layer_name = "alpha"
+                    attr_node.layer_name = "color"
 
                 shader_input_node = b3d_node
                 shader_color_input = "Diffuse Map"
