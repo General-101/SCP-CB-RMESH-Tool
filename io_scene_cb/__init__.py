@@ -9,7 +9,9 @@ bl_info = {
     "support": 'COMMUNITY',
     "category": "Import-Export"}
 
+import os
 import bpy
+import configparser
 
 from pathlib import Path
 from .common_functions import get_shader_node, SHADER_RESOURCES, ObjectType
@@ -17,6 +19,7 @@ from .scene_rmesh import update_object
 from .object_helper import connect_lightmaps, disconnect_lightmaps, bake_lightmaps
 
 from bpy.types import (
+        AddonPreferences,
         PropertyGroup,
         Operator,
         Panel
@@ -39,7 +42,47 @@ from bpy_extras.io_utils import (
 if (4, 1, 0) <= bpy.app.version:
     from bpy.types import FileHandler
 
-class SCPCBAddonPrefs(bpy.types.AddonPreferences):
+enum_items_cache = [("0", "None", "")]
+
+def get_enum_items(self, context):
+    return enum_items_cache
+
+def load_sound_emitters():
+    global enum_items_cache
+    enum_items_cache = []
+    game_path = Path(bpy.context.preferences.addons[__package__].preferences.game_path)
+
+    rooms_ini = None
+    rooms_ini_path = os.path.join(game_path, r"Data\rooms.ini")
+    if os.path.isfile(rooms_ini_path):
+        rooms_ini = configparser.ConfigParser()
+        rooms_ini.read(rooms_ini_path)
+        
+        for key_idx, entry in enumerate(rooms_ini.items("room ambience")):
+            value = entry[1]
+            result = os.path.basename(value).rsplit(".", 1)
+            if len(result) > 0:
+                result = result[0].lower()
+
+            enum_items_cache.append((str(key_idx + 1), result, result))
+
+    if len(enum_items_cache) == 0:
+        enum_items_cache = [("0", "None", "")]
+
+class CB_OT_RefreshSoundIds(Operator):
+    bl_idname = "cb.gather_sound_ids"
+    bl_label = "Refresh Sound Ids"
+
+    def execute(self, context):
+        load_sound_emitters()
+
+        for window in context.window_manager.windows:
+            for area in window.screen.areas:
+                area.tag_redraw()
+
+        return {'FINISHED'}
+
+class SCPCBAddonPrefs(AddonPreferences):
     bl_idname = __name__
     game_path: StringProperty(
         name="Game Path",
@@ -152,10 +195,11 @@ class CBObjectPropertiesGroup(PropertyGroup):
             default="",
     )
 
-    sound_emitter_id: IntProperty(
-        name = "Sound Emitter ID",
-        description = "???"
-        )
+    sound_emitter_id: EnumProperty(
+        name="Sound Emitter ID",
+        description = "Id of the sound we are using",
+        items=get_enum_items
+    )
 
     has_collision: BoolProperty(
         name ="Has Collision",
@@ -487,6 +531,8 @@ def render_sound_emitter(context, layout, active_property):
     box = layout.split()
     col = box.column(align=True)
     row = col.row()
+    row.operator("cb.gather_sound_ids")
+    row = col.row()
     row.label(text='Sound Emitter ID:')
     row.prop(active_property, "sound_emitter_id", text='')
 
@@ -663,6 +709,12 @@ class ExportRMESH(Operator, ExportHelper):
         default=True,
     )
 
+    use_game_rules: BoolProperty(
+        name ="Use Game Rules",
+        description = "Game drops lights and spotlights under certain conditons. Leave this enabled to only import what the game would see. Does not apply to UER2",
+        default = False,
+    )
+
     filter_glob: StringProperty(
         default="*.rmesh;*.rm",
         options={'HIDDEN'},
@@ -671,7 +723,7 @@ class ExportRMESH(Operator, ExportHelper):
     def execute(self, context):
         from . import scene_rmesh
 
-        return scene_rmesh.export_scene(context, Path(self.filepath), self.file_type, self.use_lightmap_name_override, self.report)
+        return scene_rmesh.export_scene(context, Path(self.filepath), self.file_type, self.use_lightmap_name_override, self.use_game_rules, self.report)
 
 class ImportRMESH(Operator, ImportHelper):
     """Import an RMESH file"""
@@ -733,6 +785,12 @@ class ImportRMESH(Operator, ImportHelper):
         default = True,
         )
 
+    use_game_rules: BoolProperty(
+        name ="Use Game Rules",
+        description = "Game drops screens, lights, spotlights, sound emitters, and models under certain conditons. Leave this enabled to only import what the game would see. Does not apply to UER and UER2",
+        default = False,
+    )
+
     filter_glob: StringProperty(
         default="*.rmesh;*.rm",
         options={'HIDDEN'},
@@ -751,6 +809,7 @@ class ImportRMESH(Operator, ImportHelper):
         box = layout.box()
         box.label(text="General", icon='SETTINGS')
         box.prop(self, "use_light_radius")
+        box.prop(self, "use_game_rules")
         box.prop(self, "import_meshes")
         box.prop(self, "import_collisions")
         box.prop(self, "import_trigger_boxes")
@@ -767,8 +826,8 @@ class ImportRMESH(Operator, ImportHelper):
     def execute(self, context):
         from . import scene_rmesh
 
-        return scene_rmesh.import_scene(context, Path(self.filepath), self.file_type, self.fullbright_materials, self.use_light_radius, self.split_by_material, 
-                                        self.import_meshes, self.import_collisions, self.import_trigger_boxes, self.import_entities, self.report)
+        return scene_rmesh.import_scene(context, Path(self.filepath), self.file_type, self.fullbright_materials, self.use_light_radius, self.use_game_rules, 
+                                        self.split_by_material, self.import_meshes, self.import_collisions, self.import_trigger_boxes, self.import_entities, self.report)
 
     if (4, 1, 0) <= bpy.app.version:
         def invoke(self, context, event):
@@ -1026,6 +1085,7 @@ classesscp = [
     CB_OT_ConnectLightmaps,
     CB_OT_DisconnectLightmaps,
     CB_OT_BakeLightmaps,
+    CB_OT_RefreshSoundIds,
     CB_PT_MapHelper
 ]
 
@@ -1045,6 +1105,8 @@ def register():
     bpy.types.NODE_MT_category_shader_shader.append(menu_func_cb_shaders)
     bpy.types.Object.cb = PointerProperty(type=CBObjectPropertiesGroup, name="RMESH Properties", description="Set properties for your rmesh object")
     bpy.types.Image.cb = PointerProperty(type=B3DImagePropertiesGroup)
+
+    load_sound_emitters()
 
 def unregister():
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)

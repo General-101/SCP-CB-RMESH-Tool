@@ -409,7 +409,7 @@ def gather_mesh_data(ob, depsgraph, section_data, file_type, use_lightmap_name_o
 
     ob_eval.to_mesh_clear()
 
-def export_scene(context, filepath, file_type, use_lightmap_name_override, report):
+def export_scene(context, filepath, file_type, use_lightmap_name_override, use_game_rules, report):
     game_path = Path(bpy.context.preferences.addons[__package__].preferences.game_path)
     room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
     set_gamma = bpy.context.preferences.addons[__package__].preferences.set_gamma
@@ -521,6 +521,9 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
             rmesh_dict["entities"].append(entity_dict)
 
         elif object_type == ObjectType.entity_light:
+            if not file_type == ExportFileType.rmesh_uer2 and use_game_rules and not ob.cb.has_sprite:
+                continue
+
             loc, rot, scl = ob.matrix_world.decompose()
             r, g, b = ob.data.color
             entity_dict = {}
@@ -546,6 +549,9 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
             rmesh_dict["entities"].append(entity_dict)
 
         elif object_type == ObjectType.entity_spotlight:
+            if not file_type == ExportFileType.rmesh_uer2 and use_game_rules and not ob.cb.has_sprite:
+                continue
+
             loc, rot, scl = ob.matrix_world.decompose()
             r, g, b = ob.data.color
             entity_dict = {}
@@ -583,7 +589,7 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, repor
 
             entity_dict["entity_type"] = "soundemitter"
             entity_dict["position"] = tuple((1.0 / room_scale) * Vector(flip(loc)))
-            entity_dict["id"] = ob.cb.sound_emitter_id
+            entity_dict["id"] = int(ob.cb.sound_emitter_id)
             entity_dict["range"] = ob.data.distance_max
             rmesh_dict["entities"].append(entity_dict)
 
@@ -878,8 +884,8 @@ def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_
 
     return mesh
 
-def import_scene(context, filepath, file_type, fullbright_materials, use_light_radius, split_by_material, import_meshes, import_collisions, import_trigger_boxes, 
-                 import_entities, report):
+def import_scene(context, filepath, file_type, fullbright_materials, use_light_radius, use_game_rules, split_by_material, import_meshes, import_collisions, 
+                 import_trigger_boxes, import_entities, report):
     file_type, rmesh_dict = read_rmesh(filepath, ImportFileType(int(file_type)))
 
     game_path = Path(bpy.context.preferences.addons[__package__].preferences.game_path)
@@ -1022,11 +1028,17 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
         items_ini = configparser.ConfigParser()
         items_ini.read(items_ini_path)
 
+    max_sound_emitters_per_room = 8
+    sound_emitter_count = 0
     if has_entity_data and import_entities:
         entity_collection = get_referenced_collection("entities", context.scene.collection, False)
         entity_meshes = {}
         for entity_idx, entity_dict in enumerate(rmesh_dict["entities"]):
             if entity_dict["entity_type"] == "screen":
+                loc = room_scale * Vector(flip(entity_dict["position"]))
+                if use_game_rules and loc.length == 0.0:
+                    continue
+
                 object_mesh = bpy.data.objects.new("%s screen" % entity_idx, None)
                 object_mesh.cb.object_type = str(ObjectType.entity_screen.value)
                 object_mesh.empty_display_type = 'IMAGE'
@@ -1040,7 +1052,6 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
 
                 entity_collection.objects.link(object_mesh)
 
-                loc = room_scale * Vector(flip(entity_dict["position"]))
                 rot = Euler((radians(90), 0, radians(90)))
                 scl = Vector((1, 1, 1))
                 object_mesh.matrix_world = Matrix.LocRotScale(loc, rot, scl)
@@ -1074,12 +1085,15 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                 object_mesh.matrix_world = Matrix.LocRotScale(loc, rot, scl)
 
             elif entity_dict["entity_type"] == "light" or entity_dict["entity_type"] == "light_fix":
+                loc = room_scale * Vector(flip(entity_dict["position"]))
+                if entity_dict["entity_type"] == "light" and use_game_rules and loc.length == 0.0:
+                    continue
+
                 object_data = bpy.data.lights.new("%s light" % entity_idx, "POINT")
                 object_mesh = bpy.data.objects.new("%s light" % entity_idx, object_data)
                 object_mesh.cb.object_type = str(ObjectType.entity_light.value)
                 entity_collection.objects.link(object_mesh)
 
-                loc = room_scale * Vector(flip(entity_dict["position"]))
                 rot = Quaternion()
                 scl = Vector((1, 1, 1))
                 object_mesh.matrix_world = Matrix.LocRotScale(loc, rot, scl)
@@ -1107,6 +1121,10 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                     object_mesh.cb.scattering = entity_dict["scattering"]
 
             elif entity_dict["entity_type"] == "spotlight":
+                loc = room_scale * Vector(flip(entity_dict["position"]))
+                if use_game_rules and loc.length == 0.0:
+                    continue
+
                 object_data = bpy.data.lights.new("%s spotlight" % entity_idx, "SPOT")
                 object_mesh = bpy.data.objects.new("%s spotlight" % entity_idx, object_data)
                 object_mesh.cb.object_type = str(ObjectType.entity_spotlight.value)
@@ -1146,12 +1164,16 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                     p, y, r = entity_dict["euler_rotation"].split(" ")
                     rotation = [float(p), float(y), float(r)]
 
-                loc = room_scale * Vector(flip(entity_dict["position"]))
                 rot = get_blender_rot(rotation, True)
                 scl = Vector((1, 1, 1))
                 object_mesh.matrix_world = Matrix.LocRotScale(loc, rot, scl)
 
             elif entity_dict["entity_type"] == "soundemitter":
+                if use_game_rules and sound_emitter_count >= max_sound_emitters_per_room:
+                    continue
+                else:
+                    sound_emitter_count += 1
+
                 speaker_data = bpy.data.speakers.new("%s soundemitter" % entity_idx)
                 object_mesh = bpy.data.objects.new("%s soundemitter" % entity_idx, speaker_data)
                 object_mesh.cb.object_type = str(ObjectType.entity_sound_emitter.value)
@@ -1161,8 +1183,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                 rot = Quaternion()
                 scl = Vector((1, 1, 1))
                 object_mesh.matrix_world = Matrix.LocRotScale(loc, rot, scl)
-
-                object_mesh.cb.sound_emitter_id = entity_dict["id"]
+                object_mesh.cb.sound_emitter_id = str(entity_dict["id"])
                 object_mesh.data.distance_max = entity_dict["range"]
 
             elif entity_dict["entity_type"] == "playerstart":
@@ -1180,6 +1201,9 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                 is_uer_prop = False
                 if entity_dict["entity_type"] == "mesh":
                     is_uer_prop = True
+
+                if not is_uer_prop and use_game_rules and entity_dict["model_name"] == "":
+                    continue
 
                 model_path = get_file(entity_dict["model_name"], False, directory_path=local_prop_path)
                 texture_path = None

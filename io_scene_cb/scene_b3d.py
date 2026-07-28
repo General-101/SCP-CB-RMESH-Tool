@@ -554,7 +554,7 @@ def import_node_recursive(context, data, node, material_list, room_scale, set_ga
                 object_mesh = bpy.data.objects.new(result["classname"], speaker_data)
                 context.collection.objects.link(object_mesh)
 
-                object_mesh.cb.sound_emitter_id = result["sound"]
+                object_mesh.cb.sound_emitter_id = str(result["sound"])
                 object_mesh.data.distance_max = result["range"]
 
                 object_mesh.cb.object_type = str(ObjectType.entity_sound_emitter.value)
