@@ -700,7 +700,7 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, use_g
     report({'INFO'}, "Export completed successfully")
     return {'FINISHED'}
 
-def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, set_gamma, is_collision=False):
+def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, split_by_material, material_type_enum, room_scale, set_gamma, is_collision=False):
     mesh_name = "temp_mesh"
     if mesh_data is None:
         mesh_name = "mesh"
@@ -860,7 +860,11 @@ def generate_mesh_data(mesh_dict, mesh_data, mesh_idx, local_asset_path, random_
     for poly in mesh.polygons:
         poly.use_smooth = True
         if not is_collision:
-            poly.material_index = mesh_idx
+            mat_idx = mesh_idx
+            if split_by_material:
+                mat_idx = 0
+
+            poly.material_index = mat_idx
             for loop_index in poly.loop_indices:
                 vert_index = mesh.loops[loop_index].vertex_index
                 vertex = mesh_dict["vertices"][vert_index]
@@ -940,7 +944,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                 context.scene.collection.objects.link(object_mesh)
 
                 bm = bmesh.new()
-                temp_mesh = generate_mesh_data(mesh_dict, single_mesh, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, set_gamma)
+                temp_mesh = generate_mesh_data(mesh_dict, single_mesh, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, split_by_material, material_type_enum, room_scale, set_gamma)
                 bm.from_mesh(temp_mesh)
                 bpy.data.meshes.remove(temp_mesh)
                 bm.to_mesh(single_mesh)
@@ -961,7 +965,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
 
             bm = bmesh.new()
             for mesh_idx, mesh_dict in enumerate(rmesh_dict["meshes"]):
-                temp_mesh = generate_mesh_data(mesh_dict, full_mesh, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, set_gamma)
+                temp_mesh = generate_mesh_data(mesh_dict, full_mesh, mesh_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, split_by_material, material_type_enum, room_scale, set_gamma)
                 bm.from_mesh(temp_mesh)
                 bpy.data.meshes.remove(temp_mesh)
 
@@ -987,7 +991,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
 
             bm = bmesh.new()
             for render_idx, render_dict in enumerate(rmesh_dict["render_meshes"]):
-                temp_render = generate_mesh_data(render_dict, render_mesh, render_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, set_gamma)
+                temp_render = generate_mesh_data(render_dict, render_mesh, render_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, split_by_material, material_type_enum, room_scale, set_gamma)
 
                 bm.from_mesh(temp_render)
                 bpy.data.meshes.remove(temp_render)
@@ -998,7 +1002,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
     if has_collision_data and import_collisions:
         collision_collection = get_referenced_collection("collisions", context.scene.collection, True)
         for collision_idx, collision_dict in enumerate(rmesh_dict["collision_meshes"]):
-            collision_mesh = generate_mesh_data(collision_dict, None, collision_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, set_gamma, True)
+            collision_mesh = generate_mesh_data(collision_dict, None, collision_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, split_by_material, material_type_enum, room_scale, set_gamma, True)
             collision_ob = bpy.data.objects.new("collision_%s" % collision_idx, collision_mesh)
             collision_ob.cb.object_type = str(ObjectType.collision.value)
             collision_collection.objects.link(collision_ob)
@@ -1016,7 +1020,7 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
             for trigger_box_idx, trigger_box_dict in enumerate(rmesh_dict["trigger_boxes"]):
                 for trigger_idx, trigger_dict in enumerate(trigger_box_dict["meshes"]):
                     trigger_name = "trigger_g%st%s" % (trigger_box_idx, trigger_idx)
-                    trigger_mesh = generate_mesh_data(trigger_dict, None, trigger_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, material_type_enum, room_scale, set_gamma, True)
+                    trigger_mesh = generate_mesh_data(trigger_dict, None, trigger_idx, local_asset_path, random_color_gen, error_log, file_type, report, fullbright_materials, split_by_material, material_type_enum, room_scale, set_gamma, True)
                     trigger_mesh_object_mesh = bpy.data.objects.new(trigger_name, trigger_mesh)
                     trigger_mesh_object_mesh.cb.object_type = str(ObjectType.trigger_box.value)
                     trigger_mesh_object_mesh.cb.trigger_group = trigger_box_dict["name"]

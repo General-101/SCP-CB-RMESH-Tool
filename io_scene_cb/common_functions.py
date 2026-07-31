@@ -175,6 +175,16 @@ def get_material_name(ob, tri):
         else:
             if ob.data.materials[ob_mat_idx] is not None:
                 mat_name = ob.data.materials[ob_mat_idx].name
+    else:
+        print("This scene contains out of bounds material indicies. Defaulting to material slot 0")
+        if mat_count >= 1:
+            mat_slot = ob.material_slots[0]
+            if mat_slot.link == 'OBJECT':
+                if mat_slot is not None:
+                    mat_name = mat_slot.material.name
+            else:
+                if ob.data.materials[0] is not None:
+                    mat_name = ob.data.materials[0].name
 
     return mat_name
 
