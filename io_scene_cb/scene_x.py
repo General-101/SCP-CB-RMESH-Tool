@@ -14,6 +14,7 @@ from .common_functions import (RandomColorGenerator,
                                connect_inputs,
                                clean_string,
                                generate_texture_mapping,
+                               get_ingame_scale,
                                SHADER_RESOURCES,
                                SHADER_NODE_NAMES)
 
@@ -137,7 +138,8 @@ def create_object(arm_ob, parent_bone, x_dict, mesh_dict, room_scale, material_t
         else:
             mesh_name = "mesh"
 
-    vertices = [room_scale * Vector(flip(vertex)) for vertex in mesh_dict["vertices"]]
+    rst, rsr, rss = room_scale.decompose()
+    vertices = [rss * Vector(flip(vertex)) for vertex in mesh_dict["vertices"]]
     triangles = [triangle[::-1] for triangle in mesh_dict["faces"]]
     mesh = bpy.data.meshes.new(mesh_name)
     mesh.from_pydata(vertices, [], triangles)
@@ -206,8 +208,9 @@ def create_object(arm_ob, parent_bone, x_dict, mesh_dict, room_scale, material_t
     return entity_mesh
 
 def x_matrix_to_blender(mat, room_scale):
+    rst, rsr, rss = room_scale.decompose()
     loc, rot, scl = Matrix((mat[0:4], mat[4:8], mat[8:12], mat[12:16])).transposed().decompose()
-    return Matrix.LocRotScale(room_scale * Vector(flip(loc)), Quaternion(flip(rot)).inverted(), Vector(flip(scl)))
+    return Matrix.LocRotScale(rss * Vector(flip(loc)), Quaternion(flip(rot)).inverted(), Vector(flip(scl)))
 
 def blender_matrix_to_x(mat, room_scale):
     loc, rot, scl = mat.decompose()
@@ -499,7 +502,7 @@ def export_scene(context, output_path, report):
     report({'INFO'}, "Export completed successfully")
     return {'FINISHED'}
 
-def import_scene(context, filepath, report, bm=None, ob_data=None, is_simple=False, error_log=None, random_color_gen=None):
+def import_scene(context, filepath, use_game_rules, report, bm=None, ob_data=None, is_simple=False, error_log=None, random_color_gen=None):
     material_list = []
     x_dict = read_x(filepath)
     if x_dict:
@@ -509,7 +512,7 @@ def import_scene(context, filepath, report, bm=None, ob_data=None, is_simple=Fal
             random_color_gen = RandomColorGenerator() # generates a random sequence of colors
 
         game_path = Path(bpy.context.preferences.addons["io_scene_cb"].preferences.game_path)
-        room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
+        room_scale = get_ingame_scale(game_path, filepath, use_game_rules)
         material_type_enum = MaterialType(int(bpy.context.preferences.addons[__package__].preferences.material_type))
 
         local_asset_path = ""

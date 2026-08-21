@@ -43,10 +43,10 @@ def update_object(context, report):
             bm = bmesh.new()
             is_simple=True
             if model_path.lower().endswith(".b3d"):
-                import_b3d(context, Path(model_path), True, True, report, bm, ob.data, is_simple)
+                import_b3d(context, Path(model_path), True, True, "0", True, report, bm, ob.data, is_simple)
 
             else:
-                import_x(context, Path(model_path), report, bm, ob.data, is_simple)
+                import_x(context, Path(model_path), True, report, bm, ob.data, is_simple)
 
             bm.to_mesh(ob.data)
             bm.free()
@@ -84,10 +84,10 @@ def update_object(context, report):
                     bm = bmesh.new()
                     is_simple=True
                     if model_path.lower().endswith(".b3d"):
-                        import_b3d(context, Path(model_path), True, True, report, bm, ob.data, is_simple)
+                        import_b3d(context, Path(model_path), True, True, "0", True, report, bm, ob.data, is_simple)
 
                     else:
-                        import_x(context, Path(model_path), report, bm, ob.data, is_simple)
+                        import_x(context, Path(model_path), True, report, bm, ob.data, is_simple)
 
                     bm.to_mesh(ob.data)
                     bm.free()
@@ -1220,10 +1220,10 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                     bm = bmesh.new()
                     is_simple=True
                     if model_path.lower().endswith(".b3d"):
-                        import_b3d(context, Path(model_path), fullbright_materials, use_light_radius, report, bm, ob_data, is_simple, error_log, random_color_gen)
+                        import_b3d(context, Path(model_path), fullbright_materials, use_light_radius, "0", True, report, bm, ob_data, is_simple, error_log, random_color_gen)
 
                     else:
-                        import_x(context, Path(model_path), report, bm, ob_data, is_simple, error_log, random_color_gen)
+                        import_x(context, Path(model_path), True, report, bm, ob_data, is_simple, error_log, random_color_gen)
 
                     bm.to_mesh(ob_data)
                     bm.free()
@@ -1273,16 +1273,15 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                     if item_entry:
                         model_path = get_file(item_entry, False)
                         ob_data = entity_meshes.get(model_path)
-                        model_scale = (1.0 / room_scale) * float(items_ini.get(model_name, "scale", fallback=0.01))
                         if ob_data is None and model_path:
                             ob_data = entity_meshes[model_path] = bpy.data.meshes.new("%s mesh" % entity_idx)
                             bm = bmesh.new()
                             is_simple=True
                             if model_path.lower().endswith(".b3d"):
-                                import_b3d(context, Path(model_path), fullbright_materials, use_light_radius, report, bm, ob_data, is_simple, error_log, random_color_gen)
+                                import_b3d(context, Path(model_path), fullbright_materials, use_light_radius, "0", True, report, bm, ob_data, is_simple, error_log, random_color_gen)
 
                             else:
-                                import_x(context, Path(model_path), report, bm, ob_data, is_simple, error_log, random_color_gen)
+                                import_x(context, Path(model_path), True, report, bm, ob_data, is_simple, error_log, random_color_gen)
 
                             bm.to_mesh(ob_data)
                             bm.free()
@@ -1298,8 +1297,10 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                 rot = get_blender_rot(entity_dict["euler_rotation"])
                 scl = Vector((model_scale, model_scale, model_scale))
                 object_mesh.matrix_world = Matrix.LocRotScale(loc, rot, scl)
-
-                object_mesh.cb.item_name = entity_dict["item_name"]
+                if file_type == ExportFileType.rmesh or file_type == ExportFileType.rmesh_tb:
+                    object_mesh.cb.item_name = entity_dict["item_name"]
+                else:
+                    object_mesh.cb.item_name = entity_dict["model_name"]
                 object_mesh.cb.use_custom_rotation = bool(entity_dict["use_custom_rotation"])
                 object_mesh.cb.state_1 = entity_dict["state_1"]
                 object_mesh.cb.state_2 = entity_dict["state_2"]

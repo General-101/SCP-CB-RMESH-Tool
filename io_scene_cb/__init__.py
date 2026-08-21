@@ -1,10 +1,10 @@
 bl_info = {
     "name": "SCP CB Toolset",
     "author": "General_101",
-    "version": (117, 343, 65521),
+    "version": (2, 102, 0),
     "blender": (4, 0, 0),
     "location": "File > Import-Export",
-    "description": "Import-Export SCP CB and UER game assets Build: BUILD_VERSION_STR",
+    "description": "Import-Export SCP CB and UER game assets Build: v102@74ff2a1",
     "warning": "",
     "support": 'COMMUNITY',
     "category": "Import-Export"}
@@ -858,6 +858,12 @@ class ImportX(Operator, ImportHelper):
     bl_label = "Import X"
     filename_ext = '.x'
 
+    use_game_rules: BoolProperty(
+        name ="Use Game Rules",
+        description = "Match how the mesh is scaled ingame",
+        default = True,
+        )
+
     filter_glob: StringProperty(
         default="*.x",
         options={'HIDDEN'},
@@ -871,7 +877,7 @@ class ImportX(Operator, ImportHelper):
     def execute(self, context):
         from . import scene_x
 
-        return scene_x.import_scene(context, Path(self.filepath), self.report)
+        return scene_x.import_scene(context, Path(self.filepath), self.use_game_rules, self.report)
 
     if (4, 1, 0) <= bpy.app.version:
         def invoke(self, context, event):
@@ -914,6 +920,26 @@ class ImportB3D(Operator, ImportHelper):
         default = True,
         )
 
+    use_game_rules: BoolProperty(
+        name ="Use Game Rules",
+        description = "Match how the mesh is scaled ingame",
+        default = True,
+        )
+
+    rot_modifier: EnumProperty(
+        name="Rotation Modifier",
+        description="Fixes the axis difference between Blender and the game so that bones line up.",
+        items=[ ('0', "Auto", "Attempt to automatically get the correct setting based on file name"),
+                ('1', "-X", "Add a negative 90 degrees to the X axis"),
+                ('2', "-Y", "Add a negative 90 degrees to the Y axis"),
+                ('3', "-Z", "Add a negative 90 degrees to the Z axis"),
+                ('4', "X", "Add 90 degrees to the X axis"),
+                ('5', "Y", "Add 90 degrees to the Y axis"),
+                ('6', "Z", "Add 90 degrees to the Z axis"),
+                ('7', "None", "Rotations are left as is")
+            ]
+        )
+
     filter_glob: StringProperty(
         default="*.b3d",
         options={'HIDDEN'},
@@ -927,7 +953,7 @@ class ImportB3D(Operator, ImportHelper):
     def execute(self, context):
         from . import scene_b3d
 
-        return scene_b3d.import_scene(context, Path(self.filepath), self.fullbright_materials, self.use_light_radius, self.report)
+        return scene_b3d.import_scene(context, Path(self.filepath), self.fullbright_materials, self.use_light_radius, self.rot_modifier, self.use_game_rules, self.report)
 
     if (4, 1, 0) <= bpy.app.version:
         def invoke(self, context, event):
