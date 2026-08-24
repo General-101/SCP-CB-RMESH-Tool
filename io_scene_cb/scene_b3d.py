@@ -353,7 +353,8 @@ def get_bone_distance(object_mesh, node, parent_ob, room_scale):
 
     return bone_distance
 
-def import_node_recursive(context, data, node, material_list, room_scale, set_gamma, armature=None, strips=None, has_skeleton=False, use_light_radius=True, parent_ob=None, last_mesh=None, is_simple=False, bm=None, ob_data=None, bm_transform=None, world_transform=None, rotation_angle=0, rotation_axis="Z"):
+def import_node_recursive(context, data, node, material_list, room_scale, set_gamma, armature=None, strips=None, has_skeleton=False, use_light_radius=True, parent_ob=None, 
+                          last_mesh=None, is_simple=False, bm=None, ob_data=None, bm_transform=None, world_transform=None, rotation_angle=0, rotation_axis="Z"):
     has_skin = bool(node.get("bones"))
     has_key = node.get("key") is not None
     has_mesh = node.get("mesh") is not None

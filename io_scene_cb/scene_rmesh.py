@@ -642,14 +642,13 @@ def export_scene(context, filepath, file_type, use_lightmap_name_override, use_g
             x, y, z = rot.to_euler()
             entity_dict = {}
 
-            button_scale = Vector((7.68, 7.68, 7.68))
             door_type = DoorType(int(ob.cb.door_type))
             if door_type == DoorType.big:
-                ob_a_matrix = Matrix.LocRotScale((1.0 / room_scale) * Vector((432, -192, 179.2)), Euler((0, 0, radians(-90))), button_scale)
-                ob_b_matrix = Matrix.LocRotScale((1.0 / room_scale) * Vector((-432, 192, 179.2)), Euler((0, 0, radians(90))), button_scale)
+                ob_a_matrix = Matrix.LocRotScale(room_scale * Vector((432, -192, 179.2)), Euler((0, 0, radians(-90))), Vector((1, 1, 1)))
+                ob_b_matrix = Matrix.LocRotScale(room_scale * Vector((-432, 192, 179.2)), Euler((0, 0, radians(90))), Vector((1, 1, 1)))
             else:
-                ob_a_matrix = Matrix.LocRotScale((1.0 / room_scale) * Vector((153.6, -25.6, 179.2)), Euler((0, 0, 0)), button_scale)
-                ob_b_matrix = Matrix.LocRotScale((1.0 / room_scale) * Vector((-153.6, 25.6, 179.2)), Euler((0, 0, radians(180))), button_scale)
+                ob_a_matrix = Matrix.LocRotScale(room_scale * Vector((153.6, -25.6, 179.2)), Euler((0, 0, 0)), Vector((1, 1, 1)))
+                ob_b_matrix = Matrix.LocRotScale(room_scale * Vector((-153.6, 25.6, 179.2)), Euler((0, 0, radians(180))), Vector((1, 1, 1)))
 
             button_1_position = (0, 0, 0)
             button_1_angle = (0, 0, 0)
@@ -1348,22 +1347,12 @@ def import_scene(context, filepath, file_type, fullbright_materials, use_light_r
                     door_ob.cb.delete_half = door_halved
 
                     loc_result = room_scale * Vector(flip(entity_dict["button_1_position"]))
-                    loc_baw, rot_baw, scl_baw = button_a_ob.matrix_world.decompose()
-                    if not loc_result.length >= MIN_BUTTON_LENGTH:
-                        loc_result = loc_baw
-
                     rot = get_blender_rot(entity_dict["button_1_angle"])
-                    scl = scl_baw
-                    button_a_ob.matrix_world = Matrix.LocRotScale(loc_result, rot, scl)
+                    button_a_ob.matrix_local = button_a_ob.matrix_local @ Matrix.LocRotScale(loc_result, rot, Vector((1, 1, 1)))
 
                     loc_result = room_scale * Vector(flip(entity_dict["button_2_position"]))
-                    loc_bbw, rot_bbw, scl_bbw = button_b_ob.matrix_world.decompose()
-                    if not loc_result.length >= MIN_BUTTON_LENGTH:
-                        loc_result = loc_bbw
-
                     rot = get_blender_rot(entity_dict["button_2_angle"])
-                    scl = scl_bbw
-                    button_b_ob.matrix_world = Matrix.LocRotScale(loc_result, rot, scl)
+                    button_b_ob.matrix_local = button_b_ob.matrix_local @ Matrix.LocRotScale(loc_result, rot, Vector((1, 1, 1)))
 
             else:
                 report({'WARNING'}, "Unknown entity type: %s" % entity_dict["entity_type"])

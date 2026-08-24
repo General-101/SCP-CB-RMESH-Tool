@@ -368,7 +368,8 @@ def get_ingame_scale(game_path, filepath, use_game_rules):
         scale_val = (0.6 * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
     elif filepath_l == "gfx_doorhit.b3d":
-        result = 1
+        scale_val = 1
+        result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
     elif filepath_l == "gfx_lightcone.b3d":
         scale_val = (0.01 * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))

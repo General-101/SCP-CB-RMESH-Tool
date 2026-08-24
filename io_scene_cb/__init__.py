@@ -64,7 +64,7 @@ def load_sound_emitters():
             if len(result) > 0:
                 result = result[0].lower()
 
-            enum_items_cache.append((str(key_idx + 1), result, result))
+            enum_items_cache.append((str(key_idx), result, result))
 
     if len(enum_items_cache) == 0:
         enum_items_cache = [("0", "None", "")]
