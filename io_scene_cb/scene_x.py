@@ -435,8 +435,9 @@ def process_mesh(ob_dict, bone_transforms, armature, ob, depsgraph, room_scale, 
 
     ob_dict.append(mesh_dict)
 
-def export_scene(context, output_path, report):
-    room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
+def export_scene(context, output_path, use_game_rules, report):
+    game_path = Path(bpy.context.preferences.addons["io_scene_cb"].preferences.game_path)
+    room_scale = get_ingame_scale(game_path, output_path, use_game_rules, True)
     if context.view_layer.objects.active is not None:
         bpy.ops.object.mode_set(mode='OBJECT')
 

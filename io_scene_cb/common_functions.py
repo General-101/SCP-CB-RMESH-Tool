@@ -326,7 +326,7 @@ def read_color(input_stream):
 def write_color(input_stream, value):
     input_stream.write(struct.pack('<3B', *value))
 
-def get_ingame_scale(game_path, filepath, use_game_rules):
+def get_ingame_scale(game_path, filepath, use_game_rules, is_inverse=False):
     room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
     result = Matrix().to_4x4()
     if not use_game_rules:
@@ -973,5 +973,9 @@ def get_ingame_scale(game_path, filepath, use_game_rules):
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
 
     result *= room_scale
+    if is_inverse:
+        translation, rotation, scale = result.decompose()
+        scale = Vector((1.0 / scale.x, 1.0 / scale.y, 1.0 / scale.z,))
+        result = Matrix.LocRotScale(translation, rotation, scale)
 
     return result

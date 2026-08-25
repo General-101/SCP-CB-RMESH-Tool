@@ -672,6 +672,8 @@ def import_node_recursive(context, data, node, material_list, room_scale, set_ga
             import_node_recursive(context, data, child_node, material_list, room_scale, set_gamma, armature, strips, has_skeleton, use_light_radius, object_mesh, last_mesh, world_transform=world_transform, rotation_angle=rotation_angle, rotation_axis=rotation_axis)
 
 def get_mesh(set_gamma, b3d_data, ob, depsgraph, room_scale, armature_ob=None):
+    rst, rsr, rss = room_scale.decompose()
+
     ob_eval = ob.evaluated_get(depsgraph)
     mesh = ob_eval.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
     mesh.calc_loop_triangles()
@@ -886,7 +888,7 @@ def get_mesh(set_gamma, b3d_data, ob, depsgraph, room_scale, armature_ob=None):
 
             loop = mesh.loops[loop_index]
             v = mesh.vertices[loop.vertex_index]
-            x, y, z = (1.0 / room_scale) * v.co
+            x, y, z = rss * v.co
             i, j, k = loop.normal
             pos = (x, z, y)
             loop_normal = (i, k, j)
@@ -955,15 +957,22 @@ def get_mesh(set_gamma, b3d_data, ob, depsgraph, room_scale, armature_ob=None):
 
     return skin_info, mesh_dict
 
-def get_scene_bones(b3d_data, node_dict, depsgraph, room_scale, skin_info=None, key_info=None, armature=None, parent_ob=None):
+def get_scene_bones(b3d_data, node_dict, depsgraph, room_scale, rotation_angle, rotation_axis, skin_info=None, key_info=None, armature=None, parent_ob=None):
+    rst, rsr, rss = room_scale.decompose()
+    matrix_modifier = Matrix.Rotation(radians(rotation_angle), 4, rotation_axis)
     for bone in armature.data.bones:
         if bone.parent == parent_ob:
-            node_transform = bone.matrix_local
+            node_transform = bone.matrix_local @ matrix_modifier
             if parent_ob is not None:
-                node_transform = parent_ob.matrix_local.inverted() @ bone.matrix_local
-            loc, rot_quat, scl = node_transform.decompose()
+                parent_matrix = parent_ob.matrix_local
+                if isinstance(parent_ob, bpy.types.Bone):
+                    parent_matrix = (parent_ob.matrix_local @ matrix_modifier)
 
-            tx, ty, tz = (1.0 / room_scale) * loc
+                node_transform = parent_matrix.inverted() @ (bone.matrix_local @ matrix_modifier)
+            loc, rot_quat, scl = node_transform.decompose()
+            
+
+            tx, ty, tz = rss * loc
             sx, sy, sz = scl
             rw, ri, rj, rk = rot_quat
             ob_node_dict = {
@@ -1004,7 +1013,7 @@ def get_scene_bones(b3d_data, node_dict, depsgraph, room_scale, skin_info=None, 
 
                         f_loc, f_rot_quat, f_scl = frame_transform.decompose()
 
-                        f_tx, f_ty, f_tz = (1.0 / room_scale) * f_loc
+                        f_tx, f_ty, f_tz = rss * f_loc
                         f_sx, f_sy, f_sz = f_scl
                         f_rw, f_ri, f_rj, f_rk = f_rot_quat
 
@@ -1031,11 +1040,12 @@ def get_scene_bones(b3d_data, node_dict, depsgraph, room_scale, skin_info=None, 
 
                     ob_node_dict["key"].append(action_entry)
 
-            get_scene_bones(b3d_data, ob_node_dict["nodes"], depsgraph, room_scale, skin_info, key_info, armature, bone)
+            get_scene_bones(b3d_data, ob_node_dict["nodes"], depsgraph, room_scale, rotation_angle, rotation_axis, skin_info, key_info, armature, bone)
 
             node_dict.append(ob_node_dict)
 
 def get_node_name(ob, room_scale):
+    rst, rsr, rss = room_scale.decompose()
     node_name = ob.name.lower()
     object_type_enum = ObjectType(int(ob.cb.object_type))
     # The classname bit seems to be something 3D World Studio sets for certain objects and isn't special for the game at all.
@@ -1054,7 +1064,7 @@ def get_node_name(ob, room_scale):
         r, g, b = ob.data.color
 
         light_color = "color=%s %s %s" % (int(r * 255), int(g * 255), int(b * 255))
-        light_range = "range=%s" % ((1.0 / room_scale) * ob.data.shadow_soft_size)
+        light_range = "range=%s" % (rss * ob.data.shadow_soft_size)
         light_intensity = "intensity=%s" % ob.data.energy
         light_linear_falloff = "linearfalloff=%s" % int(ob.cb.linear_falloff)
         node_name = "classname=light\r\n%s\r\n%s\r\n%s\r\n%s" % (light_color, light_intensity, light_range, light_linear_falloff)
@@ -1064,7 +1074,7 @@ def get_node_name(ob, room_scale):
 
         light_angles = "angles=%s %s %s" % (0, 0, 0)
         light_color = "color=%s %s %s" % (int(r * 255), int(g * 255), int(b * 255))
-        light_range = "range=%s" % ((1.0 / room_scale) * ob.data.shadow_soft_size)
+        light_range = "range=%s" % (rss * ob.data.shadow_soft_size)
         light_intensity = "intensity=%s" % ob.data.energy
         light_inner_cone_angle = "innerconeangle=%s" % int(ob.data.spot_blend * outer_deg)
         light_outer_cone_angle = "outerconeangle=%s" % int(outer_deg)
@@ -1080,7 +1090,8 @@ def get_node_name(ob, room_scale):
 
     return node_name
 
-def get_scene_objects(context, set_gamma, b3d_data, node_dict, depsgraph, skin_info, key_info, armature_ob, room_scale, parent_ob=None):
+def get_scene_objects(context, set_gamma, b3d_data, node_dict, depsgraph, skin_info, key_info, armature_ob, room_scale, rotation_angle, rotation_axis, parent_ob=None):
+    rst, rsr, rss = room_scale.decompose()
     for ob in bpy.context.view_layer.objects:
         if ob.parent == parent_ob:
             if ob.type == "MESH" and armature_ob is not None and ob.parent == armature_ob:
@@ -1091,7 +1102,7 @@ def get_scene_objects(context, set_gamma, b3d_data, node_dict, depsgraph, skin_i
 
             node_name = get_node_name(ob, room_scale)
 
-            tx, ty, tz = (1.0 / room_scale) * loc
+            tx, ty, tz = rss * loc
             sx, sy, sz = scl
             rw, ri, rj, rk = rot_quat
             ob_node_dict = {
@@ -1118,7 +1129,7 @@ def get_scene_objects(context, set_gamma, b3d_data, node_dict, depsgraph, skin_i
             if armature_ob:
                 if ob.type == "ARMATURE":
                     ob_node_dict["bones"] = []
-                    get_scene_bones(b3d_data, ob_node_dict["nodes"], depsgraph, room_scale, skin_info, key_info, ob)
+                    get_scene_bones(b3d_data, ob_node_dict["nodes"], depsgraph, room_scale, rotation_angle, rotation_axis, skin_info, key_info, ob)
 
                 key_data = key_info.get(ob.name)
                 if key_data is not None:
@@ -1130,7 +1141,7 @@ def get_scene_objects(context, set_gamma, b3d_data, node_dict, depsgraph, skin_i
 
                             f_loc, f_rot_quat, f_scl = frame_transform.decompose()
 
-                            f_tx, f_ty, f_tz = (1.0 / room_scale) * f_loc
+                            f_tx, f_ty, f_tz = rss * f_loc
                             f_sx, f_sy, f_sz = f_scl
                             f_rw, f_ri, f_rj, f_rk = f_rot_quat
                             key_dict = {
@@ -1162,7 +1173,7 @@ def get_scene_objects(context, set_gamma, b3d_data, node_dict, depsgraph, skin_i
                     skin_info, mesh_dict = get_mesh(set_gamma, b3d_data, ob, depsgraph, room_scale)
                     ob_node_dict["mesh"] = mesh_dict
 
-            get_scene_objects(context, set_gamma, b3d_data, ob_node_dict["nodes"], depsgraph, skin_info, key_info, armature_ob, room_scale, ob)
+            get_scene_objects(context, set_gamma, b3d_data, ob_node_dict["nodes"], depsgraph, skin_info, key_info, armature_ob, room_scale, rotation_angle, rotation_axis, ob)
 
             node_dict.append(ob_node_dict)
 
@@ -1246,9 +1257,11 @@ def get_image_properties(img, texture_dict):
     texture_dict["flags"] = tex_flags
     texture_dict["blend"] = int(img_b3d.blend_type)
 
-def gather_keyframe_data(context, armature, node_data):
+def gather_keyframe_data(context, armature, node_data, rotation_angle, rotation_axis):
     if not armature.animation_data:
         return
+
+    matrix_modifier = Matrix.Rotation(radians(rotation_angle), 4, rotation_axis)
 
     scene = context.scene
     original_frame = scene.frame_current
@@ -1295,9 +1308,9 @@ def gather_keyframe_data(context, armature, node_data):
                     if not pose_bone:
                         continue
                     if pose_bone.parent:
-                        mat = pose_bone.parent.matrix.inverted() @ pose_bone.matrix
+                        mat = (pose_bone.parent.matrix @ matrix_modifier).inverted() @ (pose_bone.matrix @ matrix_modifier)
                     else:
-                        mat = pose_bone.matrix.copy()
+                        mat = pose_bone.matrix.copy() @ matrix_modifier
 
                 strip_results[node_name].append((frame, mat))
 
@@ -1307,9 +1320,33 @@ def gather_keyframe_data(context, armature, node_data):
     armature.animation_data.action = original_action
     scene.frame_set(original_frame)
 
-def export_scene(context, filepath, report):
-    room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
+def export_scene(context, filepath, use_game_rules, rot_modifier, report):
+    game_path = Path(bpy.context.preferences.addons["io_scene_cb"].preferences.game_path)
+    room_scale = get_ingame_scale(game_path, filepath, use_game_rules, True)
     set_gamma = bpy.context.preferences.addons[__package__].preferences.set_gamma
+
+    rotation_angle = 0
+    rotation_axis = "Z"
+    rotation_setting = RotModifierEnum(int(rot_modifier))
+    if rotation_setting == RotModifierEnum.N_X:
+        rotation_angle = -90
+        rotation_axis = "X"
+    elif rotation_setting == RotModifierEnum.N_Y:
+        rotation_angle = -90
+        rotation_axis = "Y"
+    elif rotation_setting == RotModifierEnum.N_Z:
+        rotation_angle = -90
+        rotation_axis = "Z"
+    elif rotation_setting == RotModifierEnum.X:
+        rotation_angle = 90
+        rotation_axis = "X"
+    elif rotation_setting == RotModifierEnum.Y:
+        rotation_angle = 90
+        rotation_axis = "Y"
+    elif rotation_setting == RotModifierEnum.Z:
+        rotation_angle = 90
+        rotation_axis = "Z"
+
     active_ob = context.view_layer.objects.active
     if active_ob is not None:
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -1335,9 +1372,9 @@ def export_scene(context, filepath, report):
             depsgraph.update()
 
         elif node_ob.type == "ARMATURE":
-            gather_keyframe_data(context, node_ob, key_dict)
+            gather_keyframe_data(context, node_ob, key_dict, rotation_angle, rotation_axis)
 
-    get_scene_objects(context, set_gamma, b3d_data, b3d_data["nodes"], depsgraph, skin_info, key_dict, armature_ob, room_scale)
+    get_scene_objects(context, set_gamma, b3d_data, b3d_data["nodes"], depsgraph, skin_info, key_dict, armature_ob, room_scale, rotation_angle, rotation_axis)
 
     if armature_ob and len(b3d_data["nodes"]) > 0:
         root_node = b3d_data["nodes"][0]

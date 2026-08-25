@@ -842,6 +842,12 @@ class ExportX(Operator, ExportHelper):
     bl_label = 'Export X'
     filename_ext = '.x'
 
+    use_game_rules: BoolProperty(
+        name ="Use Game Rules",
+        description = "Match how the mesh is scaled ingame",
+        default = True,
+        )
+
     filter_glob: StringProperty(
         default="*.x",
         options={'HIDDEN'},
@@ -850,7 +856,7 @@ class ExportX(Operator, ExportHelper):
     def execute(self, context):
         from . import scene_x
 
-        return scene_x.export_scene(context, Path(self.filepath), self.report)
+        return scene_x.export_scene(context, Path(self.filepath), self.use_game_rules, self.report)
 
 class ImportX(Operator, ImportHelper):
     """Import an X file"""
@@ -892,6 +898,26 @@ class ExportB3D(Operator, ExportHelper):
     bl_label = 'Export B3D'
     filename_ext = '.b3d'
 
+    use_game_rules: BoolProperty(
+        name ="Use Game Rules",
+        description = "Match how the mesh is scaled ingame",
+        default = True,
+        )
+
+    rot_modifier: EnumProperty(
+        name="Rotation Modifier",
+        description="Fixes the axis difference between Blender and the game so that bones line up.",
+        items=[ ('0', "Auto", "Attempt to automatically get the correct setting based on file name"),
+                ('1', "-X", "Add a negative 90 degrees to the X axis"),
+                ('2', "-Y", "Add a negative 90 degrees to the Y axis"),
+                ('3', "-Z", "Add a negative 90 degrees to the Z axis"),
+                ('4', "X", "Add 90 degrees to the X axis"),
+                ('5', "Y", "Add 90 degrees to the Y axis"),
+                ('6', "Z", "Add 90 degrees to the Z axis"),
+                ('7', "None", "Rotations are left as is")
+            ]
+        )
+
     filter_glob: StringProperty(
         default="*.b3d",
         options={'HIDDEN'},
@@ -900,7 +926,7 @@ class ExportB3D(Operator, ExportHelper):
     def execute(self, context):
         from . import scene_b3d
 
-        return scene_b3d.export_scene(context, Path(self.filepath), self.report)
+        return scene_b3d.export_scene(context, Path(self.filepath), self.use_game_rules, self.rot_modifier, self.report)
 
 class ImportB3D(Operator, ImportHelper):
     """Import a B3D file"""
