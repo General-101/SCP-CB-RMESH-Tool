@@ -437,7 +437,7 @@ def process_mesh(ob_dict, bone_transforms, armature, ob, depsgraph, room_scale, 
 
 def export_scene(context, output_path, use_game_rules, report):
     game_path = Path(bpy.context.preferences.addons["io_scene_cb"].preferences.game_path)
-    room_scale = get_ingame_scale(game_path, output_path, use_game_rules, True)
+    room_scale, rotation_angle, rotation_axis = get_ingame_scale(game_path, output_path, use_game_rules, True)
     if context.view_layer.objects.active is not None:
         bpy.ops.object.mode_set(mode='OBJECT')
 
@@ -513,7 +513,7 @@ def import_scene(context, filepath, use_game_rules, report, bm=None, ob_data=Non
             random_color_gen = RandomColorGenerator() # generates a random sequence of colors
 
         game_path = Path(bpy.context.preferences.addons["io_scene_cb"].preferences.game_path)
-        room_scale = get_ingame_scale(game_path, filepath, use_game_rules)
+        room_scale, rotation_angle, rotation_axis = get_ingame_scale(game_path, filepath, use_game_rules)
         material_type_enum = MaterialType(int(bpy.context.preferences.addons[__package__].preferences.material_type))
 
         local_asset_path = ""

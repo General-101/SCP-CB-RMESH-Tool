@@ -33,6 +33,16 @@ class MaterialType(Enum):
     full = 0
     simple = auto()
 
+class RotModifierEnum(Enum):
+    AUTO = 0
+    N_X = auto()
+    N_Y = auto()
+    N_Z = auto()
+    X = auto()
+    Y = auto()
+    Z = auto()
+    NA = auto()
+
 def linear_to_gamma(v):
     return pow(v, 1.0 / 2.2)
 
@@ -327,11 +337,13 @@ def write_color(input_stream, value):
     input_stream.write(struct.pack('<3B', *value))
 
 def get_ingame_scale(game_path, filepath, use_game_rules, is_inverse=False):
+    rotation_angle = 0
+    rotation_axis = "Z"
     room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
     result = Matrix().to_4x4()
     if not use_game_rules:
-        result *= room_scale
-        return result
+        result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((room_scale, room_scale, room_scale)))
+        return result, rotation_angle, rotation_axis
 
     # We are taking the room scale in the game itself and getting the inverse.
     # We use it on the scales used by the game to get something we can scale independently. - Gen 
@@ -819,11 +831,15 @@ def get_ingame_scale(game_path, filepath, use_game_rules, is_inverse=False):
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((1, 1, 1)))
     elif filepath_l == "npcs_035.b3d":
         # 35.6005 is the X dimension of the 035 model at 1.0 roomscale. - Gen
-        scale_val = (0.5 / (room_scale * 35.6005)) * game_scale_inverse
+        scale_val = (0.5 / (game_scale * 35.6005))
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_035tentacle.b3d":
         scale_val = (0.065 * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_106_2.b3d":
         ini_value = 0.25
         if items_ini is not None:
@@ -831,6 +847,8 @@ def get_ingame_scale(game_path, filepath, use_game_rules, is_inverse=False):
 
         scale_val = ((ini_value / 2.2) * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_1499-1.b3d":
         ini_value = 0.08
         if items_ini is not None:
@@ -838,45 +856,63 @@ def get_ingame_scale(game_path, filepath, use_game_rules, is_inverse=False):
 
         scale_val = ((ini_value / 4.0) * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_173_2.b3d":
         # 6.708 is the Y dimension of the 173 model at 1.0 roomscale. - Gen
         ini_value = 0.35
         if items_ini is not None:
             ini_value = float(npcs_ini.get("SCP-173", "scale", fallback=0.35))
 
-        scale_val = ((ini_value / (room_scale * 6.708)) * game_scale_inverse)
+        scale_val = (ini_value / (game_scale * 6.708))
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
     elif filepath_l == "npcs_205_demon1.b3d":
         scale_val = (0.05 * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_205_demon2.b3d":
         scale_val = (0.05 * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_205_demon3.b3d":
         scale_val = (0.05 * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_205_woman.b3d":
         scale_val = (0.05 * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_372.b3d":
         # 4.43868 is the X dimension of the 372 model at 1.0 roomscale. - Gen
-        scale_val = ((0.35 / (room_scale * 4.43868)) * game_scale_inverse)
+        scale_val = (0.35 / (game_scale * 4.43868))
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 180
+        rotation_axis = "Z"
     elif filepath_l == "npcs_682arm.b3d":
         scale_val = (0.15 * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
     elif filepath_l == "npcs_bll.b3d":
         # 24.8496 is the X dimension of the bll model at 1.0 roomscale. - Gen
-        scale_val = ((1.8 / (room_scale * 24.8496)) * game_scale_inverse)
+        scale_val = (1.8 / (game_scale * 24.8496))
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_classd.b3d":
         # 35.6005 is the X dimension of the D class model at 1.0 roomscale. - Gen
-        scale_val = (0.5 / (room_scale * 35.6005))
+        scale_val = (0.5 / (game_scale * 35.6005))
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_clerk.b3d":
         # 33.5748 is the X dimension of the clerk model at 1.0 roomscale. - Gen
-        scale_val = (0.5 / (room_scale * 33.5748))
+        scale_val = (0.5 / (game_scale * 33.5748))
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_duck_low_res.b3d":
         scale_val = (0.07 * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
@@ -887,6 +923,8 @@ def get_ingame_scale(game_path, filepath, use_game_rules, is_inverse=False):
 
         scale_val = ((ini_value / 20.0) * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_guard.b3d":
         ini_value = 0.29
         if items_ini is not None:
@@ -894,6 +932,8 @@ def get_ingame_scale(game_path, filepath, use_game_rules, is_inverse=False):
 
         scale_val = ((ini_value / 2.5) * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "X"
     elif filepath_l == "npcs_mtf2.b3d":
         ini_value = 0.29
         if items_ini is not None:
@@ -901,17 +941,21 @@ def get_ingame_scale(game_path, filepath, use_game_rules, is_inverse=False):
 
         scale_val = ((ini_value / 2.5) * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_naziofficer.b3d":
         # 33.5956 is the X dimension of the naziofficer model at 1.0 roomscale. - Gen
-        scale_val = ((1.8 / (room_scale * 33.5956)) * game_scale_inverse)
+        scale_val = (0.5 / (game_scale * 33.5956))
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_partyhat.b3d":
         # This model gets attached to 173 so we are reusing the scale from that. - Gen
         ini_value = 0.35
         if items_ini is not None:
             ini_value = float(npcs_ini.get("SCP-173", "scale", fallback=0.35))
 
-        scale_val = ((ini_value / (room_scale * 6.708)) * game_scale_inverse)
+        scale_val = (ini_value / (game_scale * 6.708))
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
     elif filepath_l == "npcs_s2.b3d":
         scale_val = (0.32 / 21.3) * game_scale_inverse
@@ -923,6 +967,8 @@ def get_ingame_scale(game_path, filepath, use_game_rules, is_inverse=False):
 
         scale_val = (ini_value * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_scp-066.b3d":
         ini_value = 0.17
         if items_ini is not None:
@@ -930,15 +976,23 @@ def get_ingame_scale(game_path, filepath, use_game_rules, is_inverse=False):
 
         scale_val = ((ini_value / 2.5) * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_scp-1048.b3d":
         scale_val = (0.05 * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_scp-1048a.b3d":
         scale_val = (0.05 * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_scp-1048pp.b3d":
         scale_val = (0.05 * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_scp-939.b3d":
         ini_value = 0.5
         if items_ini is not None:
@@ -946,6 +1000,8 @@ def get_ingame_scale(game_path, filepath, use_game_rules, is_inverse=False):
 
         scale_val = ((ini_value / 2.5) * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_scp-966.b3d":
         ini_value = 0.5
         if items_ini is not None:
@@ -953,6 +1009,8 @@ def get_ingame_scale(game_path, filepath, use_game_rules, is_inverse=False):
 
         scale_val = ((ini_value / 40.0) * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_scp096.b3d":
         ini_value = 0.6
         if items_ini is not None:
@@ -960,6 +1018,8 @@ def get_ingame_scale(game_path, filepath, use_game_rules, is_inverse=False):
 
         scale_val = ((ini_value / 3.0) * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "X"
     elif filepath_l == "npcs_zombie1.b3d":
         ini_value = 0.27
         if items_ini is not None:
@@ -967,15 +1027,23 @@ def get_ingame_scale(game_path, filepath, use_game_rules, is_inverse=False):
 
         scale_val = ((ini_value / 2.5) * game_scale_inverse)
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
     elif filepath_l == "npcs_zombiesurgeon.b3d":
         # 36.6699 is the X dimension of the zombiesurgeon model at 1.0 roomscale. - Gen
-        scale_val = ((0.5 / (room_scale * 36.6699)) * game_scale_inverse)
+        scale_val = (0.5 / (game_scale * 36.6699))
         result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((scale_val, scale_val, scale_val)))
+        rotation_angle = 90
+        rotation_axis = "Z"
 
-    result *= room_scale
     if is_inverse:
+        rotation_angle = rotation_angle * -1
         translation, rotation, scale = result.decompose()
-        scale = Vector((1.0 / scale.x, 1.0 / scale.y, 1.0 / scale.z,))
+        scale = Vector((1.0 / (scale.x * room_scale), 1.0 / (scale.y * room_scale), 1.0 / (scale.z * room_scale)))
+        result = Matrix.LocRotScale(translation, rotation, scale)
+    else:
+        translation, rotation, scale = result.decompose()
+        scale = Vector(((scale.x * room_scale), (scale.y * room_scale), (scale.z * room_scale)))
         result = Matrix.LocRotScale(translation, rotation, scale)
 
-    return result
+    return result, rotation_angle, rotation_axis

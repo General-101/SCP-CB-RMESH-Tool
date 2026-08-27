@@ -11,6 +11,7 @@ from .process_b3d import B3DTree, write_b3d
 from mathutils import Matrix, Vector, Quaternion
 from .common_functions import (RandomColorGenerator,
                                MaterialType,
+                               RotModifierEnum,
                                linear_to_gamma,
                                gamma_to_linear,
                                get_file,
@@ -63,16 +64,6 @@ class MaterialBlendEnum(Enum):
 class TextureTypeEnum(Enum):
     lightmap = 0
     diffuse = auto()
-
-class RotModifierEnum(Enum):
-    AUTO = 0
-    N_X = auto()
-    N_Y = auto()
-    N_Z = auto()
-    X = auto()
-    Y = auto()
-    Z = auto()
-    NA = auto()
 
 def import_mesh(set_gamma, room_scale, node, material_list, is_simple=False, ob_data=None):
     loop_normals = []
@@ -1322,30 +1313,8 @@ def gather_keyframe_data(context, armature, node_data, rotation_angle, rotation_
 
 def export_scene(context, filepath, use_game_rules, rot_modifier, report):
     game_path = Path(bpy.context.preferences.addons["io_scene_cb"].preferences.game_path)
-    room_scale = get_ingame_scale(game_path, filepath, use_game_rules, True)
+    room_scale, rotation_angle, rotation_axis = get_ingame_scale(game_path, filepath, use_game_rules, True)
     set_gamma = bpy.context.preferences.addons[__package__].preferences.set_gamma
-
-    rotation_angle = 0
-    rotation_axis = "Z"
-    rotation_setting = RotModifierEnum(int(rot_modifier))
-    if rotation_setting == RotModifierEnum.N_X:
-        rotation_angle = -90
-        rotation_axis = "X"
-    elif rotation_setting == RotModifierEnum.N_Y:
-        rotation_angle = -90
-        rotation_axis = "Y"
-    elif rotation_setting == RotModifierEnum.N_Z:
-        rotation_angle = -90
-        rotation_axis = "Z"
-    elif rotation_setting == RotModifierEnum.X:
-        rotation_angle = 90
-        rotation_axis = "X"
-    elif rotation_setting == RotModifierEnum.Y:
-        rotation_angle = 90
-        rotation_axis = "Y"
-    elif rotation_setting == RotModifierEnum.Z:
-        rotation_angle = 90
-        rotation_axis = "Z"
 
     active_ob = context.view_layer.objects.active
     if active_ob is not None:
@@ -1434,31 +1403,10 @@ def find_bones(node, bone_check_list, uv_counts):
 def import_scene(context, filepath, fullbright_materials, use_light_radius, rot_modifier, use_game_rules, report, bm=None, ob_data=None, is_simple=False, error_log=None, 
                  random_color_gen=None):
     game_path = Path(bpy.context.preferences.addons[__package__].preferences.game_path)
-    room_scale = get_ingame_scale(game_path, str(filepath), use_game_rules)
+    room_scale, rotation_angle, rotation_axis = get_ingame_scale(game_path, str(filepath), use_game_rules)
     material_type_enum = MaterialType(int(bpy.context.preferences.addons[__package__].preferences.material_type))
     set_gamma = bpy.context.preferences.addons[__package__].preferences.set_gamma
 
-    rotation_angle = 0
-    rotation_axis = "Z"
-    rotation_setting = RotModifierEnum(int(rot_modifier))
-    if rotation_setting == RotModifierEnum.N_X:
-        rotation_angle = -90
-        rotation_axis = "X"
-    elif rotation_setting == RotModifierEnum.N_Y:
-        rotation_angle = -90
-        rotation_axis = "Y"
-    elif rotation_setting == RotModifierEnum.N_Z:
-        rotation_angle = -90
-        rotation_axis = "Z"
-    elif rotation_setting == RotModifierEnum.X:
-        rotation_angle = 90
-        rotation_axis = "X"
-    elif rotation_setting == RotModifierEnum.Y:
-        rotation_angle = 90
-        rotation_axis = "Y"
-    elif rotation_setting == RotModifierEnum.Z:
-        rotation_angle = 90
-        rotation_axis = "Z"
 
     local_asset_path = ""
     if not is_string_empty(str(game_path)) and str(filepath).startswith(str(game_path)):
