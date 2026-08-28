@@ -342,8 +342,12 @@ def get_ingame_scale(game_path, filepath, use_game_rules, is_inverse=False):
     room_scale = bpy.context.preferences.addons[__package__].preferences.room_scale
     result = Matrix().to_4x4()
     if not use_game_rules:
-        result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((room_scale, room_scale, room_scale)))
-        return result, rotation_angle, rotation_axis
+        if is_inverse:
+            result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((1.0 / room_scale, 1.0 / room_scale, 1.0 / room_scale)))
+            return result, rotation_angle, rotation_axis
+        else:
+            result = Matrix.LocRotScale(Vector((0, 0, 0)), Euler((0, 0, 0)), Vector((room_scale, room_scale, room_scale)))
+            return result, rotation_angle, rotation_axis
 
     # We are taking the room scale in the game itself and getting the inverse.
     # We use it on the scales used by the game to get something we can scale independently. - Gen 

@@ -904,18 +904,10 @@ class ExportB3D(Operator, ExportHelper):
         default = True,
         )
 
-    rot_modifier: EnumProperty(
+    rot_modifier: BoolProperty(
         name="Rotation Modifier",
         description="Fixes the axis difference between Blender and the game so that bones line up.",
-        items=[ ('0', "Auto", "Attempt to automatically get the correct setting based on file name"),
-                ('1', "-X", "Add a negative 90 degrees to the X axis"),
-                ('2', "-Y", "Add a negative 90 degrees to the Y axis"),
-                ('3', "-Z", "Add a negative 90 degrees to the Z axis"),
-                ('4', "X", "Add 90 degrees to the X axis"),
-                ('5', "Y", "Add 90 degrees to the Y axis"),
-                ('6', "Z", "Add 90 degrees to the Z axis"),
-                ('7', "None", "Rotations are left as is")
-            ]
+        default = True,
         )
 
     filter_glob: StringProperty(
@@ -952,18 +944,10 @@ class ImportB3D(Operator, ImportHelper):
         default = True,
         )
 
-    rot_modifier: EnumProperty(
+    rot_modifier: BoolProperty(
         name="Rotation Modifier",
         description="Fixes the axis difference between Blender and the game so that bones line up.",
-        items=[ ('0', "Auto", "Attempt to automatically get the correct setting based on file name"),
-                ('1', "-X", "Add a negative 90 degrees to the X axis"),
-                ('2', "-Y", "Add a negative 90 degrees to the Y axis"),
-                ('3', "-Z", "Add a negative 90 degrees to the Z axis"),
-                ('4', "X", "Add 90 degrees to the X axis"),
-                ('5', "Y", "Add 90 degrees to the Y axis"),
-                ('6', "Z", "Add 90 degrees to the Z axis"),
-                ('7', "None", "Rotations are left as is")
-            ]
+        default = True,
         )
 
     filter_glob: StringProperty(

@@ -1316,6 +1316,9 @@ def export_scene(context, filepath, use_game_rules, rot_modifier, report):
     room_scale, rotation_angle, rotation_axis = get_ingame_scale(game_path, filepath, use_game_rules, True)
     set_gamma = bpy.context.preferences.addons[__package__].preferences.set_gamma
 
+    if not rot_modifier:
+        rotation_angle = 0
+
     active_ob = context.view_layer.objects.active
     if active_ob is not None:
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -1407,6 +1410,8 @@ def import_scene(context, filepath, fullbright_materials, use_light_radius, rot_
     material_type_enum = MaterialType(int(bpy.context.preferences.addons[__package__].preferences.material_type))
     set_gamma = bpy.context.preferences.addons[__package__].preferences.set_gamma
 
+    if not rot_modifier:
+        rotation_angle = 0
 
     local_asset_path = ""
     if not is_string_empty(str(game_path)) and str(filepath).startswith(str(game_path)):
